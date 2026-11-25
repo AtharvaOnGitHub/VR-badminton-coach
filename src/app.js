@@ -35,7 +35,7 @@ const racket = createRacket({
   },
   onCalibrated: (ok) => {
     gate.cal = ok;
-    const c = $('#cal-chip'); c.hidden = !ok; c.textContent = 'rest pose set';
+    const c = $('#cal-chip'); c.hidden = !ok; c.textContent = 'calibrated';
     paintLobby();
   },
   onSession: (on) => { on ? startSession('phone') : stopSession(null, 'phone'); },

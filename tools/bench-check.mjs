@@ -11,9 +11,10 @@ let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { console.log(`${c ? '  PASS' : '  FAIL'}  ${n}${x ? '  — ' + x : ''}`); c ? pass++ : fail++; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// court direction -> the device-frame vector that maps onto it, for the grip in
-// src/racket.js: court = (v.z, -v.y, v.x) for a right-hander
-const fromCourt = ([x, y, z]) => [z, -y, x];
+// court direction -> the device-frame vector that maps onto it. At the calibration
+// pose the phone's x axis is straight down, its y is forward and its z is to the
+// racket side, so court = (v.z, -v.x, -v.y) for a right-hander.
+const fromCourt = ([x, y, z]) => [-y, -z, x];
 // shortest rotation taking `a` onto `b`, as [w,x,y,z]
 const between = (a, b) => {
   const d = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
@@ -72,10 +73,8 @@ page.on('pageerror', e => errs.push(e.message));
 await page.goto('http://localhost:4178/', { waitUntil: 'networkidle' });
 await sleep(600);
 phone.send(JSON.stringify({ type: 'hand', hand: 'right' }));
-// the second calibration pose: the racket pointed down the court. In the rest
-// frame the phone's x axis points behind the player, so forward is -x.
-phone.send(JSON.stringify({ type: 'calibration', ref: { a: 0, b: 0, g: -Math.PI / 2 },
-                            fwd: [-1, 0, 0] }));
+// calibration: racket out in front and level, so gravity reads down the phone's x
+phone.send(JSON.stringify({ type: 'calibration', down: [1, 0, 0] }));
 await sleep(500);
 
 console.log('\nTEST BENCH');

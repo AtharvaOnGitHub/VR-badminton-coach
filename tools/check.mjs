@@ -126,10 +126,10 @@ const run = async () => {
      across.left > across.right, `${across.left} vs ${across.right}`);
 
   console.log('\n6. THE GRIP MAKES THREE MOVEMENTS THREE DISTINCT ROTATIONS');
-  // The phone is held as the handle with its top edge pointing at the floor, so the
-  // racket continues the forearm. That is what separates the movements: raising the
-  // arm out to the side turns the phone about its own x, raising it in front turns
-  // about its z, and rolling the handle turns about its y.
+  // Calibration is one pose: racket out in front, level, pointing at the net. The
+  // phone's top edge is the racket by definition and the accelerometer says which
+  // way is down, and those two directions are the whole frame. From there the arm
+  // movements are distinct rotations of the phone about its own axes.
   const grip = await page.evaluate(async () => {
     const m = await import('/src/racket.js');
     const r = o => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
@@ -138,39 +138,39 @@ const run = async () => {
       const h = deg * Math.PI / 360, s = Math.sin(h);
       return [Math.cos(h), axis[0]*s, axis[1]*s, axis[2]*s];
     };
+    // calibration pose: racket out in front, level. The phone's x axis is then
+    // straight down, which is what the accelerometer reports.
+    const DOWN = [1, 0, 0];
     const read = (q, hand = 'right') => {
-      const a = m.attitudeFromQuat(q, hand);
+      const a = m.attitudeFromQuat(q, hand, undefined, undefined, DOWN);
       return { shaft: r(a.shaft), face: r(a.normal), pitch: +a.pitchDeg.toFixed(0) };
     };
     return {
-      rest:      read([1, 0, 0, 0]),
-      side45:    read(about([1, 0, 0], 45)),
+      aim:       read([1, 0, 0, 0]),
+      hang:      read(about([0, 0, 1], -90)),
       side90:    read(about([1, 0, 0], 90)),
-      side180:   read(about([1, 0, 0], 180)),
-      front90:   read(about([0, 0, 1], 90)),
+      up:        read(about([0, 0, 1], 90)),
       roll90:    read(about([0, 1, 0], 90)),
       sideLeft:  read(about([1, 0, 0], 90), 'left'),
     };
   });
-  console.log(`  hanging at rest        shaft ${JSON.stringify(grip.rest.shaft)}  face ${JSON.stringify(grip.rest.face)}`);
-  console.log(`  lateral raise 45°      shaft ${JSON.stringify(grip.side45.shaft)}`);
-  console.log(`  lateral raise 90°      shaft ${JSON.stringify(grip.side90.shaft)}  (level, out to the side)`);
-  console.log(`  lateral raise 180°     shaft ${JSON.stringify(grip.side180.shaft)}  (overhead)`);
-  console.log(`  front raise 90°        shaft ${JSON.stringify(grip.front90.shaft)}  (level, in front)`);
-  console.log(`  roll the handle 90°    shaft ${JSON.stringify(grip.roll90.shaft)}  face ${JSON.stringify(grip.roll90.face)}`);
+  console.log(`  at the calibration pose  shaft ${JSON.stringify(grip.aim.shaft)}  face ${JSON.stringify(grip.aim.face)}`);
+  console.log(`  arm let down to hang     shaft ${JSON.stringify(grip.hang.shaft)}`);
+  console.log(`  arm out to the side      shaft ${JSON.stringify(grip.side90.shaft)}`);
+  console.log(`  arm overhead             shaft ${JSON.stringify(grip.up.shaft)}`);
+  console.log(`  handle rolled 90°        shaft ${JSON.stringify(grip.roll90.shaft)}  face ${JSON.stringify(grip.roll90.face)}`);
 
-  ok('at rest the racket hangs, head at the floor',
-     Math.abs(grip.rest.shaft.y + 1) < 0.02, JSON.stringify(grip.rest.shaft));
-  ok('raising the arm to the side takes the head out to the side',
+  ok('the calibration pose points the racket at the net',
+     grip.aim.shaft.z < -0.97, JSON.stringify(grip.aim.shaft));
+  ok('letting the arm down hangs the racket',
+     grip.hang.shaft.y < -0.97, JSON.stringify(grip.hang.shaft));
+  ok('swinging the arm out to the side takes the head sideways, not up',
      grip.side90.shaft.x > 0.97 && Math.abs(grip.side90.shaft.y) < 0.05,
      JSON.stringify(grip.side90.shaft));
-  ok('and carries on overhead',
-     grip.side180.shaft.y > 0.97, JSON.stringify(grip.side180.shaft));
-  ok('raising the arm in front takes the head forward, not sideways',
-     grip.front90.shaft.z < -0.97 && Math.abs(grip.front90.shaft.x) < 0.05,
-     JSON.stringify(grip.front90.shaft));
-  ok('rolling the handle turns the face and leaves the head hanging',
-     Math.abs(grip.roll90.shaft.y + 1) < 0.02 && Math.abs(grip.roll90.face.z) > 0.9,
+  ok('raising the arm overhead takes the head up',
+     grip.up.shaft.y > 0.97, JSON.stringify(grip.up.shaft));
+  ok('rolling the handle turns the face and leaves the head where it was',
+     Math.abs(grip.roll90.shaft.z + 1) < 0.02 && Math.abs(grip.roll90.face.y) > 0.9,
      `shaft ${JSON.stringify(grip.roll90.shaft)} face ${JSON.stringify(grip.roll90.face)}`);
   ok('a left-hander is the mirror image',
      Math.abs(grip.sideLeft.shaft.x + grip.side90.shaft.x) < 1e-6,

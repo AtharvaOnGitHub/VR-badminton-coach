@@ -40,31 +40,32 @@ export const restQuaternion = (ref) =>
 
 /* ---------- the player's own frame ----------
  *
- * Two poses, captured at calibration, define it completely.
+ * ONE pose fixes it. The player holds the racket out in front, level, pointing at
+ * the net, and holds still. That pose gives two independent directions in the
+ * phone's own axes:
  *
- *   rest     arm hanging, racket head at the floor. This fixes DOWN.
- *   forward  racket held straight out in front, level. This fixes FORWARD.
+ *   forward   the phone's top edge, because the racket extends from it. Known by
+ *             definition of the grip, not measured.
+ *   down      wherever the accelerometer says gravity is, measured.
  *
- * Everything else follows. This replaces a frame that was worked out from a
- * description of the grip, which went wrong twice: the first version put the
- * racket at right angles to the forearm, and the second assumed which way the
- * screen faced. Gravity can tell the phone which way is down, but nothing it can
- * sense tells it which way the player is facing, so the player shows it once.
+ * Two directions are a complete frame, so nothing else has to be assumed: not
+ * which way the screen faces, not which hand, not which way the room points.
  *
- * Vectors here are in the REST frame, which is the phone's own frame at the moment
- * of calibration, so `down` is the phone's top edge and needs no measurement.    */
-const DOWN = new THREE.Vector3(0, 1, 0);        // the phone's top edge, pointing at the floor
-const FALLBACK_FWD = new THREE.Vector3(-1, 0, 0);
+ * Earlier versions worked the frame out from a written description of the grip and
+ * got it wrong three times, because a description like "screen against your leg"
+ * still leaves a half turn unaccounted for. A measurement does not.             */
+const FWD_DEV = new THREE.Vector3(0, 1, 0);     // the phone's top edge: the shaft
 
-function buildFrame(fwdArr) {
-  const up = DOWN.clone().negate();
-  const f = (Array.isArray(fwdArr) && fwdArr.length === 3)
-    ? new THREE.Vector3(...fwdArr) : FALLBACK_FWD.clone();
-  // forward has to be square to down; the player's arm is never exactly level
-  f.addScaledVector(DOWN, -f.dot(DOWN));
-  if (f.lengthSq() < 1e-6) f.copy(FALLBACK_FWD);
-  f.normalize();
-  const back = f.clone().negate();
+function buildFrame(downArr) {
+  // accG points along gravity, which was confirmed against a recorded rest take
+  const down = (Array.isArray(downArr) && downArr.length === 3)
+    ? new THREE.Vector3(...downArr).normalize()
+    : new THREE.Vector3(1, 0, 0);               // the nominal grip, if never calibrated
+  const fwd = FWD_DEV.clone().addScaledVector(down, -FWD_DEV.dot(down));
+  if (fwd.lengthSq() < 0.04) fwd.set(0, 1, 0);  // the racket was not held level
+  fwd.normalize();
+  const up = down.clone().negate();
+  const back = fwd.clone().negate();
   const right = new THREE.Vector3().crossVectors(up, back);
   return { right, up, back };
 }
@@ -74,7 +75,6 @@ const makeToCourt = (frame) => (v, hand, out) => {
   const s = hand === 'left' ? -1 : 1;
   return out.set(s * v.dot(frame.right), v.dot(frame.up), v.dot(frame.back));
 };
-
 
 /**
  * Phone attitude -> a complete racket orientation in court axes.
@@ -88,9 +88,9 @@ const makeToCourt = (frame) => (v, hand, out) => {
  */
 export function attitude(rot, refQ, hand = 'right',
                          shaft = new THREE.Vector3(), normal = new THREE.Vector3(),
-                         fwd = null) {
+                         down = null) {
   const q = quatFrom(rot);
-  return fromRelative(refQ ? refQ.clone().invert().multiply(q) : q, hand, shaft, normal, fwd);
+  return fromRelative(refQ ? refQ.clone().invert().multiply(q) : q, hand, shaft, normal, down);
 }
 
 /**
@@ -106,13 +106,13 @@ export function attitude(rot, refQ, hand = 'right',
  */
 export function attitudeFromQuat(q, hand = 'right',
                                  shaft = new THREE.Vector3(), normal = new THREE.Vector3(),
-                                 fwd = null) {
+                                 down = null) {
   const rel = new THREE.Quaternion(q[1], q[2], q[3], q[0]);   // three.js is xyzw
-  return fromRelative(rel, hand, shaft, normal, fwd);
+  return fromRelative(rel, hand, shaft, normal, down);
 }
 
-function fromRelative(rel, hand, shaft, normal, fwd = null) {
-  const toCourt = makeToCourt(buildFrame(fwd));
+function fromRelative(rel, hand, shaft, normal, down = null) {
+  const toCourt = makeToCourt(buildFrame(down));
   toCourt(new THREE.Vector3(0, 1, 0).applyQuaternion(rel), hand, shaft).normalize();
   toCourt(new THREE.Vector3(0, 0, 1).applyQuaternion(rel), hand, normal).normalize();
 
@@ -132,20 +132,20 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
   let ws = null;
   let online = false;
   let refQ = null;                // the player's rest pose, as a quaternion
-  let fwd = null;                 // which way the player faces, from the second pose
+  let down = null;                // where gravity was at calibration, phone axes
   let hand = 'right';
   const state = {
     pitchDeg: 0, yawDeg: 0, w: 0, g: null, lastFrame: 0,
-    shaft:  new THREE.Vector3(0, -1, 0),    // racket shaft: at rest it hangs
-    normal: new THREE.Vector3(1, 0, 0),     // racket face: at rest it faces out
+    shaft:  new THREE.Vector3(0, 0, -1),    // at calibration it points at the net
+    normal: new THREE.Vector3(1, 0, 0),     // the strings face out to the side
   };
 
   const readAttitude = (m) => {
     // Prefer the phone's own integrated rotation. Fall back to the Euler angles
     // only for an older phone build that does not send one.
     const a = Array.isArray(m.q) && m.q.length === 4
-      ? attitudeFromQuat(m.q, hand, state.shaft, state.normal, fwd)
-      : attitude(m.rot || {}, refQ, hand, state.shaft, state.normal, fwd);
+      ? attitudeFromQuat(m.q, hand, state.shaft, state.normal, down)
+      : attitude(m.rot || {}, refQ, hand, state.shaft, state.normal, down);
     state.pitchDeg = a.pitchDeg;
     state.yawDeg = a.yawDeg;
   };
@@ -162,8 +162,8 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
       if (m.type === 'racket-online')  { online = true;  onStatus?.('racket connected'); return; }
       if (m.type === 'hand')        { hand = m.hand === 'left' ? 'left' : 'right';
                                       onHand?.(hand); return; }
-      if (m.type === 'calibration') { setRef(m.ref); fwd = m.fwd || null;
-                                      onCalibrated?.(!!refQ, !!fwd); return; }
+      if (m.type === 'calibration') { setRef(m.ref); down = m.down || null;
+                                      onCalibrated?.(!!down); return; }
       if (m.type === 'racket-offline') { online = false; onStatus?.('waiting'); return; }
       // the player can start or stop the drill from the phone as well as from here
       if (m.type === 'session')     { onSession?.(!!m.on, 'phone'); return; }
@@ -173,7 +173,7 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
       if (m.type === 'recording')   { onRecording?.(m); return; }
       if (m.type === 'frame' || m.type === 'swing') {
         if (m.ref && !refQ) setRef(m.ref);       // phone re-sends its reference
-        if (m.fwd && !fwd) fwd = m.fwd;
+        if (m.down && !down) down = m.down;
         readAttitude(m);
         state.w = m.w ?? 0;
         // magnitude of acceleration including gravity; near 9.81 means the phone is
@@ -219,8 +219,7 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
     get online() { return online && performance.now() - state.lastFrame < 2000; },
     get state() { return state; },
     get hand() { return hand; },
-    get calibrated() { return !!refQ; },
-    get aimed() { return !!fwd; },
+    get calibrated() { return !!down; },
     setHand(h) { hand = h === 'left' ? 'left' : 'right'; },
     /** Used when no phone is connected, so the court is still playable. */
     fallbackSwing: () => ({ pitchDeg: -12, yawDeg: 0, power: 0.75, w: 0, source: 'keyboard' }),
