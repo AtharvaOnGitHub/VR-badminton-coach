@@ -1,190 +1,237 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[margin=2.3cm]{geometry}
-\usepackage{graphicx}\usepackage{caption}\usepackage{booktabs}\usepackage{tabularx}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{graphicx}\usepackage{caption}\usepackage{subcaption}\usepackage{booktabs}\usepackage{tabularx}
 \usepackage{float}\usepackage[hidelinks]{hyperref}\usepackage{microtype}
 \captionsetup{font=small,labelfont=bf}
 \setlength{\parskip}{0.45em}\setlength{\parindent}{0pt}
 \renewcommand{\arraystretch}{1.15}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
 \begin{document}
 \begin{center}
-{\large\bfseries Shadow: badminton drills at home, where the shuttle always flies}\\[0.25em]
-{\small Giving the learner control of the coaching, not of the task}\\[0.6em]
-{\small Atharva Waghmare \quad\textbar\quad AXW1008 \quad\textbar\quad Intelligent Interactive Systems, A2}\\[0.3em]
-{\small\bfseries Total 1286 words} {\small(abstract 290 + main report 996; figures, captions and references excluded)}\\[0.2em]
-{\small Repository: \url{https://github.com/AtharvaOnGitHub/VR-badminton-coach} \quad\textbar\quad submitted release: tag \texttt{a2-submission}}
+{\large\bfseries Shadow}\\[0.25em]
+{\small A badminton drill partner that fits in a living room}\\[0.6em]
+{\small Atharva Waghmare \quad\textbar\quad AXW1008 \quad\textbar\quad Intelligent Interactive Systems, A2}
 \end{center}
+\renewcommand{\thefootnote}{}\footnotetext{1300 words: abstract 258, main report 1042.}
 
 \section*{Abstract}
 
-A club player who wants to fix their smash between sessions has no good option.
-Shadow swinging in a living room produces no outcome at all: you cannot see where the
-shot would have gone, so there is nothing to learn from. Court time needs a partner and
-a booking. Most practice happens with nobody watching and nothing to react to.
+Kavita plays club badminton twice a week and wants to work on her smash on the
+evenings in between. Nothing available to her does that. Shadow swinging in her living
+room gives her no outcome; court time needs a partner and a booking; video tells her
+about a shot she played hours ago. What is missing between sessions is not advice,
+which her coach gives her, but what a court supplies for free: hit it, and watch where
+it goes.
 
-Shadow is a home trainer that supplies the missing half. The player stands in a full
-virtual badminton hall with their own furniture fading in through passthrough as they
-approach it. A drill feeder lifts a high clear; the player steps, swings, and the
-shuttle leaves the racket on the trajectory their actual contact produced, clears the
-net or does not, and lands in the target box or past it. That happens every rep,
-because where the shuttle went is the task rather than an opinion about technique. A
-jump smash wants about three metres of reach and a ceiling gives two, so the virtual
-racket reaches 1.36 times further than the real one. That figure is shown, and
-adjustable.
+Shadow puts that in a room with a 2.4\,m ceiling. The player stands in a virtual hall,
+their own furniture fading into view as they approach it. A feeder lifts a high clear.
+They step, swing, and the shuttle leaves the racket on the trajectory their contact
+actually produced: a closed face and a fast arm smashes, an open face lifts a clear,
+meeting it late pushes it long. A phone held like a handle is the racket, so the shot
+is played with a real arm rather than chosen from a menu.
 
-The coaching is the part that waits. After a block the system may offer one ignorable
-line; the player can ask at any time, and what comes back names the reps it came from
-and plots them against the reps that landed. Putting the same observation away twice
-mutes it for the session, and a muted observation never returns on its own.
+The outcome arrives every repetition and is never withheld. Commentary on technique
+waits to be asked for, comes from the player's own best repetitions rather than an
+ideal, and can be switched off for good.
 
-What is implemented is the drill loop, the flight model, the remap, the freeze, the
-policy that decides whether to offer, and both player and coach surfaces. Head and
-racket tracking are a labelled placeholder. Scope is one stroke, one session, one
-player, with no retention measurement.
+The submitted scope is a complete, playable drill: the hall, shuttle physics, contact
+model, four shots, court movement, the phone racket and the coaching policy are
+implemented. The headset is simulated by a browser, the controller by a phone and
+footwork by key presses, each labelled where it appears.
 
-\section*{What it is, and who it is for}
+\section*{1. Who it is for, and what it has to do}
 
-The user is an intermediate club player with no regular coach, who knows their smash
-is unreliable without knowing why. Taking a headset to the sports hall would be absurd;
-this is for the evenings in between, in a living room cleared to roughly two arm-spans
-by one.
+Kavita has two arm spans of floor one way and one the other. She can already hit a
+stationary shuttle; what she cannot do at home is move to one, strike it, and find out
+what the strike produced.
 
-Figures 1--3 show a rep: the feed with nothing overlaid on it, the same rep from the
-side with the strike and the landing, and the freeze, where the dashed line is the gap
-between where the shuttle is and where the stroke wants to meet it.
+Shadow is therefore a \emph{drill feeder}, not an opponent. An opponent asks how
+convincingly badminton can be played in a living room, an e-sports problem. A feeder
+keeps the stroke as the thing trained and makes repetitions comparable.
 
-\section*{Design rationale}
+Two physical facts shape the rest. A jump smash puts the racket head near 3.0\,m and
+her ceiling allows 2.1\,m, so the virtual racket reaches 1.36 times further than the
+real one, shown and adjustable. And a phone cannot know where it is, since integrating
+accelerometer drift ruins a position estimate within a second, so the phone gives
+attitude and her feet give position.
+
+\section*{2. A repetition, end to end}
+
+She scans the code on screen, says she plays right-handed, and holds the phone as
+she would a grip: long edge in the hand, screen against her leg, top edge forward, arm
+relaxed. That pose becomes her zero, and nothing is counted until she presses Start.
+
+The feeder lifts a clear. She steps back and left and swings. The racket head sweeps
+through the position her phone described, and if the shuttle is inside its reach the
+strings meet it; the face angle and arm speed at that instant become a launch angle and
+a speed. The shuttle flies under drag, crosses the net and lands. A tap of the phone
+sends the next one.
+
+Swing at air and it is a whiff, with the court saying how far away the shuttle was
+against how far she can reach. Get underneath it rather than behind it and the shot is
+forced upward, because that is what happens on a court. After ten repetitions she can
+ask what happened, and gets one observation, phrased against her own repetitions.
+
+\section*{3. Design rationale}
 
 \begin{table}[H]\small
-\begin{tabularx}{\textwidth}{@{}p{3.3cm} X p{1.9cm}@{}}
+\begin{tabularx}{\textwidth}{@{}p{3.05cm}YY p{1.85cm}@{}}
 \toprule
-\textbf{Choice} & \textbf{Why it suits the problem, and the evidence} & \textbf{Status}\\
+\textbf{Choice} & \textbf{Why it suits the problem} & \textbf{Evidence} & \textbf{Status}\\
 \midrule
-The shuttle flies on every rep
-& Two kinds of feedback get conflated. Where the shuttle landed is intrinsic to the task; a judgement about contact height is augmented, and only the second is what the retention literature warns about. Suppressing both leaves the player swinging at nothing, which is the problem they came with. Property four of the module's definition is a closed loop with a human, and with no outcome there is no loop.
-& Implemented\\
+The shuttle flies every repetition; commentary waits to be asked &
+The outcome is the practice. Only commentary builds dependence &
+Guidance hypothesis, reviewed in A1 &
+Implemented\\
 \addlinespace
-Full virtual hall, passthrough only for collision
-& A shot needs somewhere to go; a passthrough living room has no net and no far court, so the outcome reads against nothing. Furniture fades in within 1.9 m, which is the one thing passthrough is genuinely needed for.
-& Implemented\\
+A full virtual hall, real furniture faded in nearby &
+A shot needs somewhere to go; a living room gives it nowhere &
+Place and plausibility illusion (Slater, 2009) &
+Implemented\\
 \addlinespace
-Reach remap, 1.36$\times$, shown and adjustable
-& Remapping maps a real movement onto a different virtual one; without it the stroke is impossible under a 2.4 m ceiling. It is shown and adjustable because a remap the player cannot see is not assistance but the system quietly changing the task, corrupting the mental model they build (L05).
-& Implemented\\
+Nothing counted until hand, grip and start are given &
+A counter that starts with the app records picking the phone up as a stroke &
+Agency needs the player's own commit (Haggard, 2017) &
+Implemented\\
 \addlinespace
-A feeder, not an opponent
-& An opponent would train reaction and turn this into how realistically badminton can be played in a living room. A predictable feed keeps the stroke as the thing being trained.
-& Implemented\\
+Reach remapped 1.36$\times$, shown and adjustable &
+A jump smash wants 3.0\,m; a 2.4\,m ceiling allows 2.1\,m &
+Universal simulation principle (LaValle, 2023) &
+Implemented\\
 \addlinespace
-Coaching waits to be asked
-& Who acts next is L01's first interaction variable. Horvitz's act/ask/wait (L03) weighs confidence against the cost of a poor guess: mid-rep the cost is high and the benefit unusable, so the system waits; between reps it may place one sentence the player can ignore.
-& Implemented\\
+One haptic pattern per meaning; a whiff is silent &
+Touch is unmissable and low bandwidth, so it carries one thing well &
+One job per channel (Wickens, 2008) &
+Implemented\\
 \addlinespace
-Two thresholds with hold times
-& A single threshold has no memory, so a noisy signal makes the system flicker and a player cannot model it. Entry needs 0.60 across two blocks, release 0.35 across three: asymmetric because an unasked-for interruption must be earned, and because repeated false alarms erode response to later ones (signal detection and cry-wolf, L04).
-& Implemented\\
+Observations wait for confidence, and can be silenced for good &
+False alarms are what stop a panel being read &
+Signal detection; disuse (Parasuraman and Riley, 1997) &
+Implemented\\
 \addlinespace
-The player freezes; the system only offers
-& Freezing mid-flight is the strongest teaching moment here, which is why the system does not take it. Agency is built from an intended action followed by the predicted result (Haggard, L06), so the commit stays the player's own. After three misses it offers; it never seizes.
-& Implemented\\
+Sending a session to a coach needs a deliberate act &
+The only thing that leaves the headset and cannot be recalled &
+Execute-with-approval (Amershi et al., 2019) &
+Implemented\\
 \addlinespace
-A three-step override ladder
-& Easy dismissal and correction are Amershi G8 and G9, and a session-wide control is G17. A dismissal must not silently retrain anything (G14), so a mute never reverses itself when confidence rises.
-& Implemented\\
+Handedness asked first &
+Mirrors shoulder, grip, yaw sign and the cost of reaching across &
+Equivalent completion as a design test &
+Implemented\\
 \addlinespace
-One observation, measured against your own good reps
-& Working memory holds about four chunks (Cowan, L05), so a list of corrections cannot be acted on. Completeness drives accurate mental models while too little produces the belief that the system is guessing (Kulesza, L05), so the sentence names the reps it used and plots them against the ones that landed. Never against an expert: a single expert reference makes the judgement normative with no route to reject it, which A1 found to be the shared unexamined assumption of the systems reviewed.
-& Implemented\\
-\addlinespace
-Coach surface behind approval
-& Contracts are per action, by stakes and reversibility. Recording a rep is high-volume and reversible, so approval would collapse into reflex clicking; sharing cannot be undone, so it is the one action needing a deliberate act.
-& Implemented\\
-\addlinespace
-LLM phrasing of observations
-& Would improve the sentence without changing the decision, so it stays \emph{advise} and sits beside the loop. Cut: generated text cannot guarantee the evidence binding above.
-& Planned\\
+Head and foot tracking &
+Browser and keys stand in; the variable the coaching reads is the same &
+Scope decision, recorded in the README &
+Planned\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\section*{Architecture}
+\section*{4. Why the system behaves this way}
 
-Figure 5 groups components by clock. Everything built is local, following the rule
-that anything the body can feel must be: a swing is felt. The shuttle's flight sits on
-the frame clock and is gated by nothing, because it is the task. The policy engine sits
-on the block clock and decides only whether to \emph{offer}; it never gates what the
-player pulls. No remote call exists, so a slow call that never returns has nothing to
-handle, and the one planned remote component degrades to the template sentence.
+Every decision Shadow makes is about \textbf{initiative}: whether to act, ask, or
+wait. Horvitz settles that per action rather than once for a system, and Shadow splits
+exactly there. Flying the shuttle is the task, so it acts. Judging the stroke is not,
+so it waits.
 
-Flight uses quadratic drag, not a parabola. A shuttle's terminal velocity is near
-6.8 m/s, so it leaves the racket around 60 m/s and sheds almost all of it, which is
-what gives badminton its shape.
+Waiting is also a detection problem. Calling a fault from three repetitions is a
+false alarm, and in a trainer false alarms cost far more than misses: they produce the
+disuse Parasuraman and Riley describe, where the player stops reading the panel at all.
+Observations therefore build over blocks of ten with hysteresis, entering at a
+confidence of 0.60 held for two blocks and leaving at 0.35 held for three. One shows at
+a time, because Cowan's four chunks is a ceiling on what anyone can hold while holding
+a racket, and the useful output is one thing to try next. Silencing is a three-step
+ladder: accept quietly, stop raising it, then a global control. Rising confidence never
+brings it back, because an override the system can reverse is not one.
 
-\section*{What building it changed}
+The body is addressed on its own terms. The player commits every action: the system
+never swings and never advances a repetition against them. Each channel carries one
+job, as Wickens's multiple resources argues. An impact whose strength is the shot's
+power means the strings met the shuttle, and nothing else uses that pattern; a whiff is
+silent, because the court already shows it. The harsh pattern is kept for the drill
+stopping and never travels alone, so when the racket falls silent the court names the
+problem as the phone buzzes.
 
-Three things only became visible by running it. An early flight model used 20 m/s
-launch speeds and could not reach the net; the drag-to-mass ratio, not the geometry, was
-wrong. Second, the contact-to-landing mapping was so sensitive that a centimetre of
-timing moved the landing a quarter of a metre, which makes a drill feel random rather
-than learnable; sweeping the model gave 18 degrees per metre and a 0.4 m window, about
-220 ms. Third, the flight clock came from accumulated frame deltas, so wherever the
-renderer was throttled the physics silently stopped and every rep reported an identical
-contact. Time now comes from the wall clock. \texttt{tools/check.mjs} drives a real
-browser and asserts all of this across nine checks.
+Slips are corrected and mistakes are not. Standing underneath the shuttle forces the
+launch upward rather than being quietly fixed, because concealing a mistake about
+position would teach the wrong stroke.
 
-\section*{Scope and honest limits}
+\section*{5. Architecture}
 
-Thresholds are defended by argument, not data from players. There is no retention
-measurement, the outcome the underlying evidence turns on, and it cannot be established
-inside this module. The swing is reduced to its timing, so the system models when
-contact happened rather than how the arm got there. Mutes last one session.
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{fig/architecture.png}
+\caption{Components, flows and development status. The lanes are the three clocks: the
+frame clock is everything the body can feel, the interaction clock is the rep and the
+gate, and the block clock is the only place anything intelligent happens.}
+\end{figure}
 
-\begin{figure}[H]\centering\includegraphics[width=0.80\textwidth]{fig/f1.png}
-\caption{Mid-rep, first person. The shuttle is on its way and nothing is drawn over it.}\end{figure}
+The layout follows the \textbf{three clocks} of an XR system. Anything the body can
+feel is local and inside the frame loop: attitude, the strike volume, the shot model,
+rendering. The rep loop and the session gate sit on the interaction clock. The part
+that reasons about the player runs on a block clock of seconds and writes observations
+the interface reads when asked, so it can never make a frame wait.
 
-\begin{figure}[H]\centering\includegraphics[width=0.80\textwidth]{fig/f2.png}
-\caption{The same rep from the side: the feeder's clear, the strike, and the landing
-marker past the target box. This is the feedback the player gets on every rep.}\end{figure}
+The racket is the interesting edge. The phone reports where its top edge points and
+where its screen faces, and those are the shaft and the strings: a complete racket
+rather than a pair of angles. Attitude is not taken from the platform's Euler angles,
+which go degenerate exactly overhead. The phone integrates its own gyroscope from the
+calibrated rest pose and corrects towards gravity, a \textbf{complementary filter},
+weighted down while the arm accelerates. A stroke is only reportable once the arm
+slows, so the message carries the age of its own peak and the court rewinds the
+shuttle to that instant.
 
-\begin{figure}[H]\centering\includegraphics[width=0.80\textwidth]{fig/f3.png}
-\caption{The player has frozen the shuttle. Red is where it is, green is where the
-stroke wants to meet it, and the dashed line is the gap.}\end{figure}
+\section*{6. Illustrated interaction}
 
-\begin{figure}[H]\centering\includegraphics[width=0.86\textwidth]{fig/f4.png}
-\caption{The player asked. One sentence, the reps behind it, and every rep plotted so
-the misses can be seen sitting below the ones that landed.}\end{figure}
+\begin{figure}[H]\centering
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s1-1-lobby.png}
+\caption{Scan, choose a hand, set the grip, start. The court feeds nothing until it
+knows which shoulder is hitting and where the arm rests.}\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s1-2-ready.png}
+\caption{The hall, over the shoulder, with the player's racket live in it. The grip is
+already theirs before anything is at stake.}\end{subfigure}
+\caption{Storyboard 1: getting the racket on.}
+\end{figure}
 
-\begin{figure}[H]\centering\includegraphics[width=\textwidth]{fig/architecture.png}
-\caption{Components by clock, each marked implemented, simulated or planned, with the
-contract on every action.}\end{figure}
+\begin{figure}[H]\centering
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s2-1-incoming.png}
+\caption{The feed is in the air. The shadow on the floor is how far away it is: on
+screen, a shuttle three metres out and one about to arrive sit in the same place.}\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s2-2-landed.png}
+\caption{The strings met it. The shot flew, cleared the net and landed in the target.
+The verdict names the shot and the angle it left at, and stops there.}\end{subfigure}
+\caption{Storyboard 2: a rep that lands. The player taps the phone for the next one.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s3-1-whiff.png}
+\caption{A swing at thin air is a whiff, stated as a distance against the player's own
+reach, with a dashed line to where the stroke wanted to meet it.}\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\includegraphics[width=\textwidth]{fig/s4-1-review.png}
+\caption{Asked for, after a block. The claim, the player's own reps as evidence, and two
+controls: show me, or put it away.}\end{subfigure}
+\caption{Storyboard 3: a miss, and the judgement that waits to be requested.}
+\end{figure}
+
+\section*{Repository}
+\small
+\url{https://github.com/AtharvaOnGitHub/VR-badminton-coach} \quad submitted at tag
+\texttt{a2-submission}. Project status, how to run it, the development record and the
+account of AI assistance are in the README there.
 
 \section*{References}
-{\small
-Amershi, S., Weld, D., Vorvoreanu, M., Fourney, A., Nushi, B., Collisson, P., Suh, J.,
-Iqbal, S., Bennett, P. N., Inkpen, K., Teevan, J., Kikin-Gil, R., \& Horvitz, E. (2019).
-Guidelines for human-AI interaction. \textit{CHI 2019}, Paper 3.
-
-Cowan, N. (2001). The magical number 4 in short-term memory. \textit{Behavioral and
-Brain Sciences}, 24(1), 87--114.
-
-Haggard, P. (2017). Sense of agency in the human brain. \textit{Nature Reviews
-Neuroscience}, 18(4), 196--207.
-
-Horvitz, E. (1999). Principles of mixed-initiative user interfaces. \textit{CHI 1999},
-159--166.
-
-Kulesza, T., Stumpf, S., Burnett, M., Yang, S., Kwan, I., \& Wong, W.-K. (2013). Too
-much, too little, or just right? Ways explanations impact end users' mental models.
-\textit{IEEE VL/HCC 2013}, 3--10.
-
-LaValle, S. M. (2023). \textit{Virtual Reality}. Cambridge University Press.
-
-Norman, D. A. (2013). \textit{The Design of Everyday Things} (revised edition). Basic Books.
-
-Sigrist, R., Rauter, G., Riener, R., \& Wolf, P. (2013). Augmented visual, auditory,
-haptic, and multimodal feedback in motor learning: A review. \textit{Psychonomic
-Bulletin \& Review}, 20, 21--53.
-}
+\small
+Amershi, S. et al. (2019) Guidelines for Human-AI Interaction. \emph{CHI 2019}.\\
+Haggard, P. (2017) Sense of agency in the human brain. \emph{Nature Reviews Neuroscience} 18(4).\\
+Horvitz, E. (1999) Principles of mixed-initiative user interfaces. \emph{CHI 1999}.\\
+Cowan, N. (2001) The magical number 4 in short-term memory. \emph{Behavioral and Brain Sciences} 24(1).\\
+Kilteni, K., Groten, R. and Slater, M. (2012) The sense of embodiment in virtual reality. \emph{Presence} 21(4).\\
+LaValle, S. M. (2023) \emph{Virtual Reality}. Cambridge University Press.\\
+Norman, D. A. (2013) \emph{The Design of Everyday Things}, revised edn. Basic Books.\\
+Parasuraman, R. and Riley, V. (1997) Humans and automation: use, misuse, disuse, abuse. \emph{Human Factors} 39(2).\\
+Slater, M. (2009) Place illusion and plausibility illusion. \emph{Phil. Trans. R. Soc. B} 364.\\
+Wickens, C. D. (2008) Multiple resources and mental workload. \emph{Human Factors} 50(3).\\
+Full literature verification notes, including the three claims corrected during A1, are in \texttt{project/LITERATURE.md}.
 \end{document}
