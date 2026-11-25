@@ -39,6 +39,14 @@ const racket = createRacket({
   },
   onSession: (on) => { on ? startSession('phone') : stopSession(null, 'phone'); },
   onFeed: () => { if (session) { clearTimeout(nextTimer); feedNext(); } },
+  onRecording: (m) => {
+    recording = !!m.on;
+    $('#btn-rec').textContent = recording ? 'Stop' : 'Record';
+    $('#btn-rec').classList.toggle('on', recording);
+    $('#rec-state').textContent = recording
+      ? 'recording ' + (m.file || '').split('/').pop()
+      : (m.n ? `saved ${m.n} frames` : '');
+  },
   onStatus: (s) => {
     const chip = $('#racket-chip');
     chip.textContent = s === 'racket connected' ? 'racket live' : s;
@@ -194,6 +202,12 @@ $('#btn-start').addEventListener('click', () => startSession('court'));
 $('#btn-stop').addEventListener('click', () => stopSession(null, 'court'));
 $('#btn-back2').addEventListener('click', () => { gate.cal = false; paintLobby(); });
 $('#btn-relink').addEventListener('click', () => racket.connect());
+
+/* Recording a take. The relay writes it, because it sees every frame and is the only
+   part of the system with a filesystem. A take replays through tools/analyse.mjs. */
+let recording = false;
+$('#btn-rec').addEventListener('click', () =>
+  racket.record(!recording, $('#rec-label').value));
 $('#btn-keyboard').addEventListener('click', () => {
   keyboardOnly = true;
   $('#btn-keyboard').textContent = 'Keyboard mode on';

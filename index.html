@@ -120,6 +120,23 @@
     <button id="btn-freeze" disabled>Freeze the shuttle</button>
     <button id="btn-stop" disabled>End the drill</button>
     <button id="btn-full">Full screen</button>
+    <span class="rec">
+      <select id="rec-label" title="What movement is this take?">
+        <option>1 rest, hold still</option>
+        <option>2 slow arm raise to overhead</option>
+        <option>3 slow arm lower to rest</option>
+        <option>4 twist the handle, arm still</option>
+        <option>5 point left, point right</option>
+        <option>6 forehand clear</option>
+        <option>7 forehand smash</option>
+        <option>8 backhand clear</option>
+        <option>9 backhand smash</option>
+        <option>10 net drop</option>
+        <option>11 free play, 30 seconds</option>
+      </select>
+      <button id="btn-rec">Record</button>
+      <span class="quiet" id="rec-state"></span>
+    </span>
     <label class="switch"><input type="checkbox" id="view-side"> Side view</label>
     <span class="grow"></span>
     <span class="quiet" id="block-line">Block 1 · 0 of 10</span>

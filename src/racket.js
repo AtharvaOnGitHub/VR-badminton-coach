@@ -97,7 +97,7 @@ function fromRelative(rel, hand, shaft, normal) {
 }
 
 export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
-                               onSession, onFeed } = {}) {
+                               onSession, onFeed, onRecording } = {}) {
   let ws = null;
   let online = false;
   let refQ = null;                // the player's rest pose, as a quaternion
@@ -136,6 +136,8 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
       if (m.type === 'session')     { onSession?.(!!m.on, 'phone'); return; }
       // a tap on the phone asks for the next shuttle
       if (m.type === 'feed')        { onFeed?.(); return; }
+      // the relay answers a record request with the file it opened
+      if (m.type === 'recording')   { onRecording?.(m); return; }
       if (m.type === 'frame' || m.type === 'swing') {
         if (m.ref && !refQ) setRef(m.ref);       // phone re-sends its reference
         readAttitude(m);
@@ -171,9 +173,10 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
   const contact = (power = 0.6, kind = '') => tell({ type: 'contact', power, kind });
   const alertPhone = (title, detail) => tell({ type: 'alert', title, detail });
   const setSession = (on) => tell({ type: 'session', on });
+  const record = (on, label) => tell({ type: 'record', on, label });
 
   return {
-    connect, contact, alertPhone, setSession,
+    connect, contact, alertPhone, setSession, record,
     get online() { return online && performance.now() - state.lastFrame < 2000; },
     get state() { return state; },
     get hand() { return hand; },

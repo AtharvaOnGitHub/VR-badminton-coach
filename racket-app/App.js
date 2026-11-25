@@ -168,9 +168,16 @@ export default function App() {
   const onFrame = (d) => {
       const r = d.rotation || { alpha: 0, beta: 0, gamma: 0 };
       const rr = d.rotationRate || { alpha: 0, beta: 0, gamma: 0 };
-      // expo reports rotationRate in deg/s on iOS and rad/s on Android; normalise
-      const scale = Math.abs(rr.alpha) > 50 || Math.abs(rr.beta) > 50 ? Math.PI / 180 : 1;
-      const wx = (rr.beta || 0) * scale, wy = (rr.gamma || 0) * scale, wz = (rr.alpha || 0) * scale;
+      /* expo-sensors documents rotationRate in DEGREES per second, and maps the
+         device axes as alpha = z, beta = y, gamma = x. Both of those were wrong
+         here before: the conversion was applied only when a value happened to
+         exceed 50, so slow movement was fed to the integrator as radians when it
+         was degrees, 57 times too fast; and x and y were swapped. Neither showed
+         while the rates were used only for a swing-speed magnitude. */
+      const D2R = Math.PI / 180;
+      const wx = (rr.gamma || 0) * D2R;
+      const wy = (rr.beta  || 0) * D2R;
+      const wz = (rr.alpha || 0) * D2R;
       const w = Math.hypot(wx, wy, wz);
       // The readout is for a human to glance at, so it is redrawn about eight times
       // a second. Re-rendering on all sixty sensor frames costs the whole tree and
@@ -185,7 +192,7 @@ export default function App() {
       const accV = acc ? [acc.x || 0, acc.y || 0, acc.z || 0] : null;
 
       // integrate the gyroscope, corrected towards gravity
-      const tSec = (d.timestamp ?? Date.now() / 1000);
+      const tSec = d.rotationRate?.timestamp ?? (Date.now() / 1000);
       const dt = lastT.current ? Math.min(0.1, Math.max(0.002, tSec - lastT.current)) : 1 / HZ;
       lastT.current = tSec;
       qRef2.current = Q.step(qRef2.current, [wx, wy, wz], dt, accV, gRest.current);
@@ -202,6 +209,9 @@ export default function App() {
         q: qRef2.current,
         rate: { x: wx, y: wy, z: wz }, w,
         acc: d.acceleration || { x: 0, y: 0, z: 0 },
+        // gravity included, because this is what the filter corrects against and a
+        // recorded take has to be replayable through the same filter
+        accG: acc ? { x: acc.x, y: acc.y, z: acc.z } : null,
       };
 
       // Frames always stream, armed or not, because that is how the player sees

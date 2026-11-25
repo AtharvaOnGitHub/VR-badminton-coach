@@ -7,3 +7,5 @@ package-lock.json
 # generated at startup by tools/qr.mjs
 qr.svg
 lan.json
+
+recordings/
