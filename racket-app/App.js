@@ -174,7 +174,14 @@ export default function App() {
          exceed 50, so slow movement was fed to the integrator as radians when it
          was degrees, 57 times too fast; and x and y were swapped. Neither showed
          while the rates were used only for a swing-speed magnitude. */
-      const D2R = Math.PI / 180;
+      /* The sign is negative, and that was settled by recorded movement rather
+         than by reading a spec. With it positive, a full arm raise to overhead
+         reached 17 degrees of elevation on the court; with it negative the same
+         recording reaches 83, against the 90 the arm actually did. The platform
+         reports the rate of the reference frame against the device, which is the
+         opposite sense to the one the integration needs. tools/fixtures holds the
+         take this was decided on, and a check asserts it. */
+      const D2R = -Math.PI / 180;
       const wx = (rr.gamma || 0) * D2R;
       const wy = (rr.beta  || 0) * D2R;
       const wz = (rr.alpha || 0) * D2R;

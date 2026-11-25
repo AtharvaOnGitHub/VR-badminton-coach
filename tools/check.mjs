@@ -1,5 +1,6 @@
 // Behaviour checks. Run: node tools/check.mjs   (static server on :4178)
 import { chromium } from 'playwright';
+import { frames, replay, elevation } from './replay.mjs';
 const URL = 'http://localhost:4178/';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -268,6 +269,30 @@ const run = async () => {
   console.log(`  20 s at 7°/s of bias: uncorrected ${drift.free}°, corrected ${drift.corrected}°`);
   ok('gravity correction holds the rest frame against gyro drift',
      drift.corrected < 8 && drift.free > 100, JSON.stringify(drift));
+
+  console.log('\n9. AGAINST A REAL ARM, RECORDED');
+  // Two takes from an actual phone on an actual arm. The gyroscope's sign was
+  // decided from the lateral raise, so these are the evidence for it and the
+  // thing that stops it being quietly reverted.
+  const real = (f, opt) => {
+    const p = replay(frames(f), opt), e = p.map(elevation);
+    return { lo: Math.min(...e), hi: Math.max(...e), side: Math.max(...p.map(v => Math.abs(v[0]))) };
+  };
+  const rest = real('tools/fixtures/real-rest.jsonl');
+  const lat  = real('tools/fixtures/real-lateral-raise.jsonl');
+  const wrong = real('tools/fixtures/real-lateral-raise.jsonl', { sign: 1 });
+  console.log(`  standing still, 2.6 s   elevation ${rest.lo.toFixed(0)} to ${rest.hi.toFixed(0)}°`);
+  console.log(`  a real lateral raise    elevation ${lat.lo.toFixed(0)} to ${lat.hi.toFixed(0)}°, `
+            + `sideways ${lat.side.toFixed(2)}`);
+  console.log(`  the same, sign flipped  elevation ${wrong.lo.toFixed(0)} to ${wrong.hi.toFixed(0)}°, `
+            + `sideways ${wrong.side.toFixed(2)}   <- what the bug looked like`);
+  ok('a still phone keeps the racket still', Math.abs(rest.hi) < 4 && rest.side < 0.1,
+     JSON.stringify(rest));
+  ok('a real arm raised overhead takes the racket overhead', lat.hi > 70,
+     `${lat.hi.toFixed(0)}°`);
+  ok('and swings it out to the side on the way', lat.side > 0.75, lat.side.toFixed(2));
+  ok('the old gyroscope sign fails this take', wrong.hi < 40,
+     `${wrong.hi.toFixed(0)}° — if this passes, the sign has been reverted`);
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();

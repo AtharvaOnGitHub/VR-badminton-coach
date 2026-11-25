@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Behaviour checks. Starts its own static server, runs the suite, tears down.
 set -uo pipefail
+export NODE_OPTIONS="--no-warnings"
 cd "$(dirname "$0")"
 
 if lsof -ti tcp:4178 >/dev/null 2>&1; then
