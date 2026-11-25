@@ -1,120 +1,127 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 840" width="1320" height="840" font-family="Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 700" width="1180" height="700" font-family="Helvetica,Arial,sans-serif">
 <defs>
-  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a5058"/></marker>
-  <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/></marker>
-</defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#37424d"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#1f6f4a"/></marker>
 <style>
-  .band{fill:#f4f6f8}.bl{font-size:12.5px;fill:#5b636d;font-weight:bold;letter-spacing:.07em}
-  .clk{font-size:11px;fill:#8b94a0}
-  .box{fill:#fff;stroke:#2f3640;stroke-width:1.6;rx:7}
-  .sim{fill:#fff;stroke:#8a5a00;stroke-width:1.6;stroke-dasharray:6 4;rx:7}
-  .plan{fill:#fafafa;stroke:#9aa3ad;stroke-width:1.4;stroke-dasharray:2 4;rx:7}
-  .core{fill:#eaf5ef;stroke:#1f6f4a;stroke-width:2.2;rx:7}
-  .task{fill:#eef4fb;stroke:#2c5d8f;stroke-width:2;rx:7}
-  .t{font-size:13px;fill:#16191d;font-weight:600}
-  .s{font-size:11px;fill:#6b7280}
-  .lk{font-size:10px;fill:#1f6f4a;font-weight:bold}
-  .ln{stroke:#4a5058;stroke-width:1.6;fill:none;marker-end:url(#a)}
-  .lng{stroke:#9aa3ad;stroke-width:1.4;fill:none;stroke-dasharray:3 3;marker-end:url(#ag)}
-  .ctr{font-size:10.5px;fill:#2c5d8f;font-style:italic}
-</style>
+.t{font-size:13px;fill:#16191d}.s{font-size:11px;fill:#5d6b78}.h{font-size:12.5px;font-weight:700;fill:#16191d}
+.lane{font-size:11px;font-weight:700;fill:#8b949c;letter-spacing:.08em}
+.box{fill:#fff;stroke:#c3ccd5;stroke-width:1.2;rx:7}
+.sim{fill:#fdf6e6;stroke:#d8b25e}.plan{fill:#f4f5f7;stroke:#b9c0c8;stroke-dasharray:5 3}
+.ai{fill:#eef4fb;stroke:#8fb4d9}
+.ln{stroke:#37424d;stroke-width:1.4;fill:none;marker-end:url(#a)}
+.lg{stroke:#1f6f4a;stroke-width:1.4;fill:none;marker-end:url(#ag)}
+.lbl{font-size:10.5px;fill:#37424d}.lblg{font-size:10.5px;fill:#1f6f4a}
+.grp{fill:none;stroke:#dfe3e8;stroke-width:1;rx:10}
+</style></defs>
 
-<text x="0" y="15" class="t" font-size="15">Shadow — architecture</text>
-<text x="0" y="33" class="s">Bands are the three clocks. Everything the body can feel is local. Task feedback runs every rep; coaching waits to be asked.</text>
-<rect class="box" x="760" y="4" width="16" height="13"/><text x="782" y="15" class="s">implemented</text>
-<rect class="sim" x="890" y="4" width="16" height="13"/><text x="912" y="15" class="s">simulated placeholder</text>
-<rect class="plan" x="1064" y="4" width="16" height="13"/><text x="1086" y="15" class="s">planned</text>
+<text x="20" y="26" class="h" font-size="15">Shadow — architecture</text>
+<text x="20" y="44" class="s">Solid = implemented and running. Amber = simulated stand-in for headset hardware. Dashed = planned, not built.</text>
 
-<!-- FRAME -->
-<rect class="band" x="0" y="44" width="1320" height="178" rx="8"/>
-<text x="16" y="70" class="bl">FRAME CLOCK</text><text x="16" y="88" class="clk">~11 ms · 90 Hz</text><text x="16" y="104" class="clk">always local</text>
-<text x="16" y="126" class="clk">a swing is felt,</text><text x="16" y="142" class="clk">so none of this</text><text x="16" y="158" class="clk">may leave the device</text>
+<!-- clock lanes -->
+<line x1="20" y1="60" x2="1160" y2="60" stroke="#e3e6ea"/>
+<text x="24" y="80" class="lane">FRAME CLOCK  ~11 ms</text>
+<text x="24" y="300" class="lane">INTERACTION CLOCK  ~100 ms</text>
+<text x="24" y="520" class="lane">BLOCK CLOCK  seconds to minutes</text>
+<line x1="20" y1="286" x2="1160" y2="286" stroke="#eef0f2" stroke-dasharray="4 4"/>
+<line x1="20" y1="506" x2="1160" y2="506" stroke="#eef0f2" stroke-dasharray="4 4"/>
 
-<rect class="sim" x="212" y="58" width="176" height="52"/><text x="226" y="80" class="t">Head + racket pose</text><text x="226" y="97" class="s">6DoF, 90 Hz</text>
-<rect class="sim" x="212" y="120" width="176" height="46"/><text x="226" y="142" class="t">Room scan</text><text x="226" y="158" class="s">furniture positions</text>
+<!-- PHONE -->
+<rect x="30" y="92" width="270" height="178" class="grp"/>
+<text x="42" y="110" class="h">Phone — the racket</text>
+<text x="42" y="126" class="s">Expo Go, SDK 58, React Native</text>
+<rect x="42" y="136" width="120" height="44" class="box sim"/>
+<text x="52" y="154" class="t">DeviceMotion</text><text x="52" y="169" class="s">60 Hz attitude</text>
+<rect x="178" y="136" width="110" height="44" class="box"/>
+<text x="188" y="154" class="t">Swing peak</text><text x="188" y="169" class="s">hysteresis</text>
+<rect x="42" y="192" width="120" height="44" class="box"/>
+<text x="52" y="210" class="t">Rest pose</text><text x="52" y="225" class="s">900 ms average</text>
+<rect x="178" y="192" width="110" height="44" class="box"/>
+<text x="188" y="210" class="t">Haptics</text><text x="188" y="225" class="s">one per meaning</text>
+<text x="42" y="258" class="s">Stand-in for headset controller tracking.</text>
 
-<rect class="core" x="446" y="58" width="196" height="52"/><text x="460" y="80" class="t" fill="#1f6f4a">Reach remap</text><text x="460" y="97" class="s">real 2.1 m → virtual 2.86 m</text>
-<rect class="box" x="446" y="120" width="196" height="46"/><text x="460" y="142" class="t">Collision fade-in</text><text x="460" y="158" class="s">passthrough as you near it</text>
+<!-- RELAY -->
+<rect x="330" y="150" width="104" height="60" class="box"/>
+<text x="342" y="174" class="t">Relay</text><text x="342" y="190" class="s">ws :4179, LAN</text>
 
-<rect class="task" x="700" y="58" width="208" height="108"/>
-<text x="714" y="82" class="t" fill="#2c5d8f">Shuttle flight + render</text>
-<text x="714" y="100" class="s">quadratic drag, v_term 6.8 m/s</text>
-<text x="714" y="116" class="s">launch ≈ 60 m/s</text>
-<text x="714" y="134" class="s">arc, landing, verdict</text>
-<text x="714" y="154" class="s" font-weight="bold" fill="#2c5d8f">TASK FEEDBACK — every rep</text>
-<text x="926" y="96" class="ctr">This never waits to be asked.</text>
-<text x="926" y="112" class="ctr">Where the shuttle went is the</text>
-<text x="926" y="128" class="ctr">task, not a coaching opinion.</text>
+<!-- COURT frame clock -->
+<rect x="470" y="92" width="400" height="178" class="grp"/>
+<text x="482" y="110" class="h">Court — virtual world generator</text>
+<text x="482" y="126" class="s">three.js, browser. Stand-in for the headset.</text>
+<rect x="482" y="136" width="120" height="44" class="box"/>
+<text x="492" y="154" class="t">Attitude</text><text x="492" y="169" class="s">shaft + face</text>
+<rect x="616" y="136" width="114" height="44" class="box"/>
+<text x="626" y="154" class="t">Shuttle flight</text><text x="626" y="169" class="s">quadratic drag</text>
+<rect x="744" y="136" width="112" height="44" class="box"/>
+<text x="754" y="154" class="t">Render</text><text x="754" y="169" class="s">hall, shadow</text>
+<rect x="482" y="192" width="120" height="44" class="box"/>
+<text x="492" y="210" class="t">Strike volume</text><text x="492" y="225" class="s">reach, whiff</text>
+<rect x="616" y="192" width="114" height="44" class="box"/>
+<text x="626" y="210" class="t">Shot model</text><text x="626" y="225" class="s">face to launch</text>
+<rect x="744" y="192" width="112" height="44" class="box"/>
+<text x="754" y="210" class="t">Reach remap</text><text x="754" y="225" class="s">ceiling bound</text>
 
-<line class="ln" x1="388" y1="84" x2="440" y2="84"/>
-<line class="ln" x1="388" y1="143" x2="440" y2="143"/>
-<line class="ln" x1="642" y1="84" x2="694" y2="90"/>
+<!-- passthrough -->
+<rect x="900" y="136" width="130" height="44" class="box sim"/>
+<text x="910" y="154" class="t">Furniture fade</text><text x="910" y="169" class="s">passthrough proxy</text>
+<rect x="900" y="192" width="130" height="44" class="box plan"/>
+<text x="910" y="210" class="t">Headset + foot</text><text x="910" y="225" class="s">tracking (planned)</text>
 
-<!-- INTERACTION -->
-<rect class="band" x="0" y="234" width="1320" height="112" rx="8"/>
-<text x="16" y="260" class="bl">INTERACTION CLOCK</text><text x="16" y="278" class="clk">~100 ms · local</text>
-<rect class="box" x="212" y="250" width="176" height="52"/><text x="226" y="272" class="t">Contact extraction</text><text x="226" y="289" class="s">how far in front of the head</text>
-<rect class="box" x="446" y="250" width="196" height="52"/><text x="460" y="272" class="t">Tracking-quality gate</text><text x="460" y="289" class="s">occluded → drop, never guess</text>
-<rect class="core" x="700" y="250" width="208" height="52"/><text x="714" y="272" class="t" fill="#1f6f4a">Freeze the shuttle</text><text x="714" y="289" class="s">player presses P, any time</text>
-<text x="926" y="276" class="ctr">player-triggered · the system may</text>
-<text x="926" y="292" class="ctr">offer it after three misses, never take it</text>
-<line class="ln" x1="388" y1="276" x2="440" y2="276"/>
-<line class="ln" x1="642" y1="276" x2="694" y2="276"/>
-<line class="ln" x1="300" y1="166" x2="300" y2="244"/>
+<!-- INTERACTION clock -->
+<rect x="330" y="312" width="300" height="170" class="grp"/>
+<text x="342" y="330" class="h">Session gate</text>
+<rect x="342" y="342" width="124" height="42" class="box"/>
+<text x="352" y="359" class="t">Four steps</text><text x="352" y="374" class="s">link, hand, grip, start</text>
+<rect x="482" y="342" width="136" height="42" class="box"/>
+<text x="492" y="359" class="t">Rep loop</text><text x="492" y="374" class="s">feed, resolve, next</text>
+<rect x="342" y="398" width="124" height="42" class="box"/>
+<text x="352" y="415" class="t">Task feedback</text><text x="352" y="430" class="s">where it went</text>
+<rect x="482" y="398" width="136" height="42" class="box"/>
+<text x="492" y="415" class="t">Alerts</text><text x="492" y="430" class="s">screen + haptic</text>
+<text x="342" y="462" class="s">Always on. This is the task, not a judgement.</text>
 
-<!-- BLOCK -->
-<rect class="band" x="0" y="358" width="1320" height="196" rx="8"/>
-<text x="16" y="384" class="bl">BLOCK CLOCK</text><text x="16" y="402" class="clk">seconds · local</text><text x="16" y="418" class="clk">end of 10 reps</text>
-<rect class="box" x="212" y="376" width="176" height="68"/><text x="226" y="398" class="t">Misses vs your own</text><text x="226" y="415" class="s">reps that landed</text><text x="226" y="431" class="s">never vs an expert</text>
-<rect class="core" x="446" y="370" width="262" height="112"/>
-<text x="462" y="394" class="t" fill="#1f6f4a">POLICY ENGINE</text>
-<text x="462" y="412" class="s">hysteresis: enter .60 × 2 blocks</text>
-<text x="462" y="428" class="s">leave .35 × 3 blocks</text>
-<text x="462" y="444" class="s">dormant→arming→active→muted</text>
-<text x="462" y="464" class="lk">decides only whether to OFFER</text>
-<rect class="box" x="766" y="370" width="186" height="50"/><text x="780" y="392" class="t">Offer one line</text><text x="780" y="409" class="s">between reps, ignorable</text>
-<text x="962" y="396" class="ctr">advise</text>
-<rect class="box" x="766" y="432" width="186" height="50"/><text x="780" y="454" class="t">Stay quiet</text><text x="780" y="471" class="s">a defined state</text>
-<rect class="box" x="446" y="496" width="262" height="44"/><text x="460" y="518" class="t">Trace</text><text x="460" y="533" class="s">from return values, not a summary</text>
-<line class="ln" x1="388" y1="408" x2="440" y2="412"/>
-<line class="ln" x1="708" y1="396" x2="760" y2="396"/><line class="ln" x1="708" y1="452" x2="760" y2="456"/>
-<line class="ln" x1="577" y1="482" x2="577" y2="490"/>
-<line class="ln" x1="544" y1="302" x2="544" y2="364"/>
+<rect x="670" y="312" width="360" height="170" class="grp"/>
+<text x="682" y="330" class="h">Interaction contracts</text>
+<rect x="682" y="342" width="160" height="42" class="box"/>
+<text x="692" y="359" class="t">Advise / assist</text><text x="692" y="374" class="s">observations, ghost target</text>
+<rect x="856" y="342" width="162" height="42" class="box"/>
+<text x="866" y="359" class="t">Execute with approval</text><text x="866" y="374" class="s">share with coach</text>
+<rect x="682" y="398" width="160" height="42" class="box"/>
+<text x="692" y="415" class="t">Override ladder</text><text x="692" y="430" class="s">accept, mute, global</text>
+<rect x="856" y="398" width="162" height="42" class="box"/>
+<text x="866" y="415" class="t">Player freeze</text><text x="866" y="430" class="s">stop the shuttle, look</text>
 
-<!-- PULLED -->
-<rect class="band" x="0" y="566" width="1320" height="222" rx="8"/>
-<text x="16" y="592" class="bl">PULLED BY</text><text x="16" y="610" class="bl">THE PLAYER</text><text x="16" y="630" class="clk">no deadline</text><text x="16" y="646" class="clk">never gated by</text><text x="16" y="662" class="clk">the policy</text>
+<!-- BLOCK clock -->
+<rect x="330" y="532" width="300" height="140" class="grp"/>
+<text x="342" y="550" class="h">Augmented feedback — on request</text>
+<rect x="342" y="562" width="124" height="42" class="box ai"/>
+<text x="352" y="579" class="t">Analysis</text><text x="352" y="594" class="s">misses vs own hits</text>
+<rect x="482" y="562" width="136" height="42" class="box ai"/>
+<text x="492" y="579" class="t">Policy state</text><text x="492" y="594" class="s">hysteresis, confidence</text>
+<text x="342" y="630" class="s">Intelligent behaviour lives here, off the frame loop.</text>
+<text x="342" y="648" class="s">Never interrupts a rep; waits to be asked.</text>
 
-<rect class="core" x="212" y="586" width="196" height="92"/>
-<text x="226" y="610" class="t" fill="#1f6f4a">"What happened?"</text><text x="226" y="628" class="s">one sentence, the reps</text><text x="226" y="644" class="s">behind it, plotted</text><text x="226" y="664" class="lk">implemented</text>
-<text x="212" y="700" class="ctr">advise — the player asked</text>
+<rect x="670" y="532" width="360" height="140" class="grp"/>
+<text x="682" y="550" class="h">Surfaces</text>
+<rect x="682" y="562" width="104" height="42" class="box"/>
+<text x="692" y="579" class="t">Review</text><text x="692" y="594" class="s">player asks</text>
+<rect x="800" y="562" width="104" height="42" class="box"/>
+<text x="810" y="579" class="t">Coach</text><text x="810" y="594" class="s">after approval</text>
+<rect x="918" y="562" width="100" height="42" class="box plan"/>
+<text x="928" y="579" class="t">History</text><text x="928" y="594" class="s">(planned)</text>
 
-<rect class="core" x="446" y="586" width="262" height="92"/>
-<text x="462" y="610" class="t" fill="#1f6f4a">Override ladder</text>
-<text x="462" y="628" class="s">1st: gone this block, silently</text>
-<text x="462" y="644" class="s">2nd: muted for the session, said</text>
-<text x="462" y="660" class="s">global: "don't offer, I'll ask"</text>
-<text x="446" y="700" class="ctr">never self-reverts, however strong the evidence</text>
-
-<rect class="core" x="766" y="586" width="186" height="92"/>
-<text x="780" y="610" class="t" fill="#1f6f4a">Show me on court</text><text x="780" y="628" class="s">side view, the contact</text><text x="780" y="644" class="s">and the gap to ideal</text><text x="780" y="664" class="lk">implemented</text>
-
-<rect class="box" x="1010" y="586" width="186" height="92"/>
-<text x="1024" y="610" class="t">Coach surface</text><text x="1024" y="628" class="s">confidence, spread,</text><text x="1024" y="644" class="s">what was muted</text><text x="1024" y="664" class="lk">implemented</text>
-<text x="1010" y="700" class="ctr">execute with approval — leaves the</text>
-<text x="1010" y="716" class="ctr">headset and cannot be undone</text>
-
-<rect class="plan" x="1010" y="370" width="186" height="112"/>
-<text x="1024" y="394" class="t" fill="#6b7280">LLM phrasing</text><text x="1024" y="412" class="s">scored observation</text><text x="1024" y="428" class="s">→ sentence</text><text x="1024" y="444" class="s">beside the loop, remote</text><text x="1024" y="464" class="s" font-weight="bold">planned</text>
-<text x="1010" y="500" class="ctr" fill="#9aa3ad">late or absent → keep the template</text>
-<text x="1010" y="516" class="ctr" fill="#9aa3ad">sentence and show its age</text>
-<line class="lng" x1="952" y1="420" x2="1004" y2="420"/>
-
-<line class="ln" x1="408" y1="628" x2="440" y2="628"/>
-<line class="ln" x1="708" y1="628" x2="760" y2="628"/>
-<line class="ln" x1="952" y1="628" x2="1004" y2="628"/>
-<line class="ln" x1="577" y1="540" x2="577" y2="580"/>
-<line class="ln" x1="300" y1="444" x2="300" y2="580"/>
-
-<text x="0" y="818" class="s" font-weight="bold">Nothing in the built system makes a remote call, so the "slowest call never returns" failure has nothing to handle. The only planned remote component is scoped so its absence degrades to the template sentence.</text>
+<!-- arrows -->
+<path class="ln" d="M300 166 L326 172"/><text x="300" y="150" class="lbl">frames 60 Hz</text>
+<path class="ln" d="M300 212 L326 196"/><text x="296" y="238" class="lbl">swing + age</text>
+<path class="ln" d="M434 172 L476 158"/><text x="436" y="146" class="lbl">forward</text>
+<path class="lg" d="M434 190 L476 206" transform="translate(0,0)"/>
+<path class="lg" d="M560 410 L440 196" stroke-dasharray="0"/>
+<text x="470" y="300" class="lblg">contact, alert</text>
+<path class="ln" d="M602 158 L612 158"/>
+<path class="ln" d="M602 214 L612 214"/>
+<path class="ln" d="M730 214 L740 214"/>
+<path class="ln" d="M672 236 L600 338"/><text x="600" y="300" class="lbl">rep outcome</text>
+<path class="ln" d="M404 482 L404 556"/><text x="410" y="522" class="lbl">block of 10</text>
+<path class="ln" d="M618 583 L676 583"/>
+<path class="ln" d="M786 562 L856 440"/><text x="792" y="510" class="lbl">approval</text>
+<path class="ln" d="M762 398 L680 362" stroke-dasharray="3 3"/>
 </svg>

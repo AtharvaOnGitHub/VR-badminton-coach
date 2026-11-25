@@ -1,146 +1,180 @@
-# Shadow — badminton drills at home, where the shuttle always flies
+# Shadow — badminton drills at home
 
-**README prose word count: ~1,150** (headings and setup commands excluded)
+**README prose: about 1,310 words** (code blocks and commands not counted.)
 
-A home trainer for the evenings you are not on court. You stand in a full virtual
-badminton hall with your own furniture fading in through passthrough as you near it.
-A drill feeder lifts a high clear; you step, swing, and **the shuttle actually flies** —
-on the trajectory your contact produced, clearing the net or not, landing in the target
-box or past it. Every rep.
+Shadow is a home badminton drill trainer. You stand in a virtual hall, a feeder lifts a
+high clear, you step and swing, and the shuttle leaves your racket on the trajectory
+your actual contact produced. The outcome is always shown. The judgement about your
+technique is not, until you ask for it.
 
-The coaching is the part that waits to be asked.
-
-Assignment 2, Intelligent Interactive Systems, University of Birmingham.
-Atharva Waghmare (AXW1008).
+Submitted for Intelligent Interactive Systems A2 at tag **`a2-submission`**.
+Report: `a2_report/A2_project_report.pdf` in the course submission.
 
 ---
 
 ## Project status
 
-**Implemented and working**
+**Works, and is inspectable**
 
-- The drill loop: feeder, step, swing, flight, landing, verdict.
-- Shuttle flight under quadratic drag. Terminal velocity 6.8 m/s, so launch is near
-  60 m/s and nearly all of it is shed — a parabola reads wrong to anyone who plays.
-- **Reach remap.** A jump smash wants ~3.0 m and a 2.4 m ceiling gives 2.1 m, so the
-  virtual racket reaches 1.36x further. Shown in the HUD, adjustable on the Room page,
-  capped at 1.6x.
-- **Freeze mid-flight** (`P`): the shuttle stops, and a dashed line shows the gap
-  between where it is and where the stroke wants to meet it. The player triggers it;
-  after three misses the system *offers*, and never takes it.
-- The policy engine: contracts, hysteresis with hold times, three-step override ladder.
-- Player review (pull-only) and a separate coach surface behind an approval gate.
-- Furniture fade-in as a collision warning.
+- Virtual hall, singles court, net and target zone, with the player's furniture fading
+  in as they approach it (a stand-in for passthrough).
+- Shuttle flight under quadratic drag, fitted to a real shuttle's 6.8 m/s terminal
+  velocity. A shuttle leaves the strings at 45 to 70 m/s and sheds nearly all of it.
+- A strike volume. A swing at thin air is a **whiff**, reported as a distance against
+  your own reach, not a silent miss.
+- Contact geometry that distinguishes being **behind** the shuttle from being
+  **under** it. Under it forces the launch upward; only from behind can you hit down.
+- Four distinct shots (smash, drive, clear, drop) produced from racket face and swing
+  speed, not chosen from a menu.
+- Two-dimensional court movement with recovery to base between reps.
+- Reach remapped to fit the ceiling, shown as a figure and adjustable by the player.
+- A phone acting as the racket over the local network: full orientation, rest-pose
+  calibration, handedness, and one haptic pattern per meaning.
+- A four-step gate before any shuttle is fed, so nothing is counted before the player
+  is holding the racket and ready.
+- Analysis that compares a player's misses against their own successful reps, held
+  behind a confidence threshold and shown only on request, with a three-step override
+  the system cannot reverse.
+- A coach surface behind an explicit approval.
 
-**Simulated, and labelled in the interface**
+**Simulated, and labelled as such**
 
-- Head and racket tracking. There is no headset; `←`/`→` step and `Space` swings, and
-  the *timing* of that press sets where you meet the shuttle — the same variable the
-  coaching layer reads in either case.
+- **The headset.** A browser window stands in for the display. The first-person camera
+  is the player's head.
+- **The controller.** A phone stands in for a tracked racket. It supplies attitude
+  only; position is not recoverable from an IMU.
+- **The feet.** `W A S D` stand in for physically stepping.
+- **Passthrough.** Two wireframe boxes fade in as the player nears them, in place of
+  real room geometry.
 
-**Planned, not built**
+**Not built**
 
-- An LLM to phrase observations, sitting beside the loop. Scoped so that if it is late
-  or absent, the template sentence stands.
-- Progression across sessions. Mutes currently last one session.
+- Head and foot tracking, a real headset build, session history across days, and any
+  multi-sport scope. These are marked *planned* in the report's rationale table.
 
-**Known limitations**
-
-- Thresholds are defended by argument, not by data from real players.
-- No retention measurement, which is the outcome the evidence turns on.
-- The swing is reduced to its timing: the system models *when* contact happened, not
-  how the arm got there.
+---
 
 ## Technology stack
 
-| Piece | What it does | Why |
+| Part | What it is | Why |
 |---|---|---|
-| Three.js r170, vendored | The hall, court, shuttle, racket, trajectories | Vendored into `vendor/` so the repo runs with no build step and no network |
-| Vanilla ES modules | Everything else | A reviewer can read the source that actually runs |
-| Playwright | `tools/check.mjs` (9 behaviour checks), `tools/shots.mjs` (report figures) | The preview pane I first tested in throttles rAF and timers; a real browser was the only way to trust a result |
-| Python `http.server` | Local static server | ES modules need HTTP; `file://` will not load them |
+| `src/` | Vanilla ES modules, three.js r170 vendored in `vendor/` | No build step, so the court is inspectable by reading it and runs from any static server |
+| `racket-app/` | Expo SDK 58, React Native 0.88, `expo-sensors`, `expo-haptics` | Runs in Expo Go with no native build; `DeviceMotion` at 60 Hz is the only sensor needed |
+| `relay/` | Node + `ws` | A phone cannot reach a browser directly. The relay forwards frames and keeps nothing |
+| `tools/` | Playwright | Behaviour checks and storyboard capture in a real browser |
 
-No AI model runs in the built system. The one planned model component is marked
-planned in the architecture diagram and is not on any code path.
+No AI model runs inside the system. The "intelligent" behaviour is a statistical
+comparison of a player's misses against their own good reps plus a hysteresis policy,
+both in `src/analysis.js` and `src/policy.js`. This is deliberate and argued in the
+report: the decision that mattered was *when the system may speak*, not what model
+produces the sentence. No API keys are needed anywhere.
 
-## Running and inspecting it
+---
 
-```bash
-cd vr-badminton-coach
-python3 -m http.server 4178
-# open http://localhost:4178
-```
-
-Fastest way to see it work: press **Feed a shuttle**, then **Space** about 1.5 s later.
-Too early finds the net, too late sails out, and the window in between lands in the
-target box. Press **P** during a flight to freeze it. Tick **Side view** to see the arc.
-
-To regenerate the report figures:
+## Running it
 
 ```bash
+git clone https://github.com/AtharvaOnGitHub/VR-badminton-coach.git
+cd VR-badminton-coach
 npm install
-npx playwright install chromium
-node tools/shots.mjs        # writes docs/shots/*.png
-node tools/check.mjs        # 9 behaviour checks against the running app
+./start.sh          # court on :4178, relay on :4179, Expo on :8081; opens the court
 ```
+
+The court works with no phone: press **Play without a phone** and use
+`W A S D` to move, `Space` to swing, `P` to freeze, `Enter` for the next shuttle.
+
+With a phone, scan the QR code shown on the court page with Expo Go, type the address
+next to it into the app, then work through connect, hand, grip, start.
+
+```bash
+./check.sh          # 25 behaviour checks in a real browser
+./check-phone.sh    # 8 checks against the phone app's own screens
+./stop.sh           # free the ports
+```
+
+---
 
 ## Development record
 
-**The first build was wrong, and it was wrong about what a product is.** It showed
-nothing during practice and treated that restraint as the design. A restraint is a
-constraint on a product, not a product — nobody practises badminton because an app is
-quiet. Worse, it conflated two different things: *task* feedback (where the shuttle
-went) with *augmented* feedback (a judgement about your technique). Only the second is
-what the motor-learning literature warns about. The rebuild gives the shuttle back on
-every rep and makes only the coaching wait to be asked.
+The project was **rebuilt once and repaired four times**, each time because using it
+showed something was wrong.
 
-**The flight model was wrong by a factor of three.** Early launch speeds of 20 m/s could
-not reach the net, let alone the back of the court. A shuttle's terminal velocity is
-about 6.8 m/s, so it leaves the racket near 60 m/s and sheds nearly all of it; the
-drag-to-mass ratio, not the geometry, was what I had mis-set. Sweeping the model fixed it.
+**Rebuild: the shuttle must fly** (`f9810ac`). The first version was a flat dashboard
+that showed nothing during practice, on the reasoning that constant feedback harms
+retention. That was a misreading of my own A1 literature: the evidence is about
+*augmented* feedback, a judgement about technique, not *task* feedback, which is where
+the shuttle went. Withholding the outcome left the user swinging at nothing. Checked by
+rebuilding around a court where the shuttle flies on every rep.
 
-**The drill felt random before it felt hard.** At 30 degrees of launch pitch per metre
-of contact error, one centimetre of timing moved the landing a quarter of a metre. A
-sweep over the flight model settled on 18, which gives a 0.4 m contact window — roughly
-220 ms, demanding but learnable.
+**Four faults found by using it** (`96bdbf2`). A swing connected with the shuttle metres
+away, because contact height was clamped to reach instead of requiring the shuttle to
+be reachable. Only one shot was producible. The court had one axis. The geometry
+rewarded standing under the shuttle, which is backwards. Checked by writing the first
+nine behaviour tests, including one that asserts a swing at thin air is a whiff.
 
-**Two defects found by running it, not reading it.** `requestAnimationFrame` does not
-fire in every embedded context, and the flight clock was built from accumulated frame
-deltas, so physics stopped whenever rendering did and every rep reported an identical
-contact point. Flight time now comes from the wall clock and the rep state machine also
-advances on a timer. Separately, three.js `setFromPoints` reuses an existing position
-buffer and iterates its *old* count, so it threw every time a trail got shorter; the
-geometry is replaced rather than mutated.
+**Expo Go could not open the app** (`6267647`). The app pinned SDK 52; Expo Go only ever
+ships the current SDK. Upgraded to 58, which also meant an explicit `index.js` because
+`expo/AppEntry.js` was removed after 52. Checked with `expo export` and `expo-doctor`.
 
-**A design decision left deliberately awkward.** Escalating from dismissed to muted
-needs the observation to come back in a *later* block. You cannot double-click your way
-to it. That makes mute harder to reach, which is correct: the ladder should escalate
-over time, not on an impatient second click.
+**The swing counter ran from app launch** (`f6e8f86`). Picking the phone up counted as
+strokes, and each one buzzed. Added the four-step gate, raised and made the swing
+threshold adjustable, and gave each haptic exactly one meaning. Checked by six new
+tests asserting the court feeds nothing for 1.8 s of waiting.
+
+**The racket moved on one axis** (`1cf05aa`). Attitude was being squeezed into two Euler
+angles. Replaced with a full orientation: the phone's top edge is the shaft, the screen
+normal is the strings. Checked by eight tests of the physics, including that twisting
+the handle turns the face and leaves the shaft still.
+
+**The Connect button was dead** (`3de18d5`). I had declared a component inside a
+component, so React discarded the subtree on every render, and the sensor was
+re-rendering at 60 Hz. Nothing could survive a press. Checked by building the app for
+the web so its screens could be driven in a browser; that harness is `check-phone.sh`.
+
+**A shuttle in front of the player read as 5.8 m away** (`c670053`). Two causes. The
+camera was locked onto the shuttle, so it sat dead centre for the whole flight and
+there was no way to see it approach; and the phone can only report a swing once the arm
+slows, so the shuttle was sampled a few hundred milliseconds late. Added a partial head
+turn and a floor shadow, and made the swing carry the age of its own peak frame.
+
+### Known and unfixed
+
+Raising the phone fully overhead does not take the racket overhead. The grip puts the
+phone at a roll of about -90°, which sits on the boundary of the `ZXY` Euler
+decomposition the platform reports, and raising the arm drives the middle angle towards
+the gimbal-lock point. The fix is to stop reconstructing orientation from Euler angles
+and integrate the gyroscope from the calibrated rest pose with a complementary filter,
+correcting slowly towards gravity. Not done at submission.
+
+---
 
 ## AI assistance
 
-Claude Opus 5, via Claude Code, was used throughout: the literature search behind A1,
-this codebase, the diagrams and the report drafts.
+The system and this README were built with **Claude (Claude Code)** in an extended
+pair-programming session. I set the direction, judged the output and rejected it
+repeatedly; the record above is largely a record of those rejections.
 
-What was checked and changed rather than accepted:
+Examples of what I changed:
 
-- **A whole build was rejected and rewritten.** The first version was AI-designed around
-  a single literature finding and ended up being about not doing things. That was my
-  call to throw out, and the reasoning is in the development record above.
-- **Fabrication checks on the literature.** Every A1 source was verified against the
-  published paper. Three claims were wrong in the first draft: participants described
-  as novices who averaged 6.6 years of experience, a NASA-TLX subscale misread as mental
-  effort when it measures self-rated performance, and a retention result that rested on
-  difference scores because the ANOVA interaction was not significant.
-- **Generated physics was wrong and was caught by testing it.** The 20 m/s launch speed
-  and the 30-degree sensitivity both came out of the model looking plausible and were
-  both wrong. Sweeping the parameter space, not reading the code, is what found them.
-- **An architectural suggestion was cut.** Adding an LLM to generate feedback text was
-  proposed and removed; the case against it is in `AGENTS.md` rather than hidden.
+- It first built a system whose identity was restraint, showing nothing during
+  practice. I rejected the premise outright: *"You have somehow convinced yourself that
+  not doing anything is the best course of action for a system."* The rebuild followed.
+- It proposed starting from an assumed problem and searching for literature to support
+  it. I stopped that and required a broad sweep first, which is what surfaced the three
+  systems A1 is built on.
+- I specified the phone grip, the rest-pose calibration, the handedness question, the
+  four-step gate and the haptic rules. It implemented them.
+- I caught the design faults listed above by using the build, not by reading the code.
 
-## Files
+How I checked it: every behavioural claim in the report is backed by a test in
+`tools/check.mjs` or `tools/phone-check.mjs` that I can re-run. Literature claims were
+verified against the source PDFs; three claims in an A1 draft were wrong and corrected,
+and the notes are in `project/LITERATURE.md`.
 
-- `src/` — the application. `policy.js` is the one to read.
-- `docs/architecture.svg` — the system diagram.
-- `docs/shots/` — the eight storyboard frames, regenerable.
-- `AGENTS.md` — why this is a fixed workflow and not an agent.
+---
+
+## Additional files
+
+Everything is in this repository. `CONTINUITY.md` is a working handover document with
+the calibrated physical constants and the pitfalls hit along the way. `docs/shots/`
+holds the storyboard frames used in the report, regenerable with `tools/shots.mjs`.
