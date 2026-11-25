@@ -5,7 +5,7 @@
 // one command and it prints the URL to type into the phone.
 import { WebSocketServer } from 'ws';
 import { networkInterfaces } from 'os';
-import { createWriteStream, mkdirSync } from 'fs';
+import { createWriteStream, mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { join } from 'path';
 
 const PORT = Number(process.env.PORT || 4179);
@@ -35,12 +35,15 @@ const startTake = (label = 'take') => {
   return file;
 };
 
+let lastFile = null;
+
 const stopTake = () => {
   if (!take) return null;
   const { file, n, label, started } = take;
   take.stream.end();
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`saved      ${file}  (${n} frames, ${secs}s, "${label}")`);
+  lastFile = file;
   take = null;
   return { file, n };
 };
@@ -73,6 +76,19 @@ wss.on('connection', (ws) => {
     if (courts.has(ws) && m.type === 'record') {
       if (m.on) tellCourts({ type: 'recording', on: true, file: startTake(m.label) });
       else { const r = stopTake(); tellCourts({ type: 'recording', on: false, ...(r || {}) }); }
+      return;
+    }
+
+    // the bench sends its own verdict when a movement finishes; save it next to
+    // the take so the numbers are on disk without anyone running a second program
+    if (courts.has(ws) && m.type === 'report') {
+      mkdirSync(DIR, { recursive: true });
+      const base = (m.file || join(DIR, `${Date.now()}_${m.label || 'take'}`))
+        .replace(/\.jsonl$/, '');
+      writeFileSync(`${base}.report.json`, JSON.stringify(m.stats, null, 2));
+      appendFileSync(join(DIR, 'summary.txt'), (m.line || '') + '\n');
+      console.log(`report     ${base}.report.json`);
+      console.log(`           ${m.line || ''}`);
       return;
     }
 

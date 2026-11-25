@@ -41,6 +41,7 @@ const racket = createRacket({
   onSession: (on) => { on ? startSession('phone') : stopSession(null, 'phone'); },
   onFeed: () => { if (session) { clearTimeout(nextTimer); feedNext(); } },
   onRecording: (m) => {
+    bench?.noteRecording(m);
     recording = !!m.on;
     $('#btn-rec').textContent = recording ? 'Stop' : 'Record';
     $('#btn-rec').classList.toggle('on', recording);

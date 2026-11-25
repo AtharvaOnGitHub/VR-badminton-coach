@@ -97,13 +97,13 @@ function fromRelative(rel, hand, shaft, normal) {
 }
 
 export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
-                               onSession, onFeed, onRecording } = {}) {
+                               onSession, onFeed, onRecording, onFrame } = {}) {
   let ws = null;
   let online = false;
   let refQ = null;                // the player's rest pose, as a quaternion
   let hand = 'right';
   const state = {
-    pitchDeg: 0, yawDeg: 0, w: 0, lastFrame: 0,
+    pitchDeg: 0, yawDeg: 0, w: 0, g: null, lastFrame: 0,
     shaft:  new THREE.Vector3(0, 0, -1),    // racket shaft direction, court axes
     normal: new THREE.Vector3(-1, 0, 0),    // racket face normal, court axes
   };
@@ -142,8 +142,12 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
         if (m.ref && !refQ) setRef(m.ref);       // phone re-sends its reference
         readAttitude(m);
         state.w = m.w ?? 0;
+        // magnitude of acceleration including gravity; near 9.81 means the phone is
+        // being held rather than swung, which is what the filter needs to know
+        state.g = m.accG ? Math.hypot(m.accG.x || 0, m.accG.y || 0, m.accG.z || 0) : null;
         state.lastFrame = performance.now();
         online = true;
+        onFrame?.(m, state);
       }
       if (m.type === 'swing') {
         onSwing?.({
@@ -174,9 +178,10 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
   const alertPhone = (title, detail) => tell({ type: 'alert', title, detail });
   const setSession = (on) => tell({ type: 'session', on });
   const record = (on, label) => tell({ type: 'record', on, label });
+  const report = (payload) => tell({ type: 'report', ...payload });
 
   return {
-    connect, contact, alertPhone, setSession, record,
+    connect, contact, alertPhone, setSession, record, report,
     get online() { return online && performance.now() - state.lastFrame < 2000; },
     get state() { return state; },
     get hand() { return hand; },

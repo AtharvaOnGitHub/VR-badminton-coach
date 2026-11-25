@@ -4,7 +4,8 @@
 // records on its own, and the set advances without anyone pressing anything.
 import { chromium } from 'playwright';
 import { WebSocket } from 'ws';
-import { readdirSync, existsSync, rmSync } from 'fs';
+import { readdirSync, existsSync, rmSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { console.log(`${c ? '  PASS' : '  FAIL'}  ${n}${x ? '  — ' + x : ''}`); c ? pass++ : fail++; };
@@ -31,11 +32,37 @@ const phone = new WebSocket('ws://127.0.0.1:4179');
 await new Promise(r => phone.on('open', r));
 phone.send(JSON.stringify({ hello: 'racket' }));
 
-let q = [1, 0, 0, 0];
-const stream = setInterval(() => phone.send(JSON.stringify({
-  type: 'frame', t: Date.now(), q, w: 1.0,
-  rate: { x: 0, y: 0, z: 0 }, acc: { x: 0, y: 0, z: 0 },
-})), 40);
+/* A fake arm. It moves between poses over time rather than teleporting, and
+   reports the angular speed that movement implies, because a bench that is
+   measuring whether the racket matches the gyroscope cannot be tested with a
+   driver whose gyroscope says nothing is happening. */
+let q = [1, 0, 0, 0], target = [1, 0, 0, 0], w = 0;
+const HZ = 50, MOVE_MS = 420;
+const qdot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
+const nlerp = (a, b, s) => {
+  if (qdot(a, b) < 0) b = b.map(v => -v);
+  const o = a.map((v, i) => v + (b[i] - v) * s);
+  const n = Math.hypot(...o);
+  return o.map(v => v / n);
+};
+const qAngle = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(qdot(a, b))));
+
+let moveLeft = 0;
+const stream = setInterval(() => {
+  if (moveLeft > 0) {
+    const s = Math.min(1, (1000 / HZ) / moveLeft);
+    const next = nlerp(q, target, s);
+    w = qAngle(q, next) * HZ;                   // rad/s this step implies
+    q = next;
+    moveLeft -= 1000 / HZ;
+  } else { q = target; w = 0; }
+  phone.send(JSON.stringify({
+    type: 'frame', t: Date.now(), q, w,
+    rate: { x: 0, y: 0, z: w }, acc: { x: 0, y: 0, z: 0 },
+    accG: { x: -9.81, y: 0, z: 0 },
+  }));
+}, 1000 / HZ);
+const moveTo = (to) => { target = to; moveLeft = MOVE_MS; };
 
 const b = await chromium.launch();
 const page = await b.newPage({ viewport: { width: 1280, height: 860 } });
@@ -66,8 +93,8 @@ await sleep(400);
 for (const t of TESTS) {
   const name = await page.textContent('#t-name');
   for (const p of t.points) {
-    q = t.track === 'face' ? qForFace(p.dir) : qForShaft(p.dir);
-    await sleep(520);                       // longer than HOLD, so it clears
+    moveTo(t.track === 'face' ? qForFace(p.dir) : qForShaft(p.dir));
+    await sleep(MOVE_MS + 420);             // move, then hold longer than HOLD
   }
   await sleep(300);
   const cls = await page.getAttribute(`#tl-${t.id}`, 'class');
@@ -83,6 +110,32 @@ console.log('  takes written: ' + (takes.join(', ') || 'none'));
 ok('each movement recorded on its own', takes.length === 4, String(takes.length));
 ok('takes are named after the movement',
    TESTS.every(t => takes.some(f => f.includes(t.id))), takes.join(' '));
+
+// the bench must produce its own numbers, on screen and on disk, with no second program
+const shown = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('#t-res-body tr')];
+  return { hidden: document.querySelector('#t-res').hidden,
+           n: rows.length,
+           ratios: rows.map(r => r.children[2]?.textContent) };
+});
+ok('the verdict is on the page when the set ends',
+   !shown.hidden && shown.n === 4, JSON.stringify(shown));
+ok('every movement has a ratio', shown.ratios.every(x => x && x !== 'null'),
+   shown.ratios.join(' '));
+ok('and the racket tracked the sensor, so the ratio sits near 1',
+   shown.ratios.every(x => Math.abs(parseFloat(x) - 1) < 0.45), shown.ratios.join(' '));
+
+const saved = readdirSync('recordings');
+const reps = saved.filter(f => f.endsWith('.report.json'));
+ok('a report is saved beside every take', reps.length === 4, reps.length + ' of 4');
+ok('a one-line summary is appended', saved.includes('summary.txt'), saved.join(' '));
+if (reps.length) {
+  const s = JSON.parse(readFileSync(join('recordings', reps[0]), 'utf8'));
+  ok('the saved report carries the numbers, not just raw frames',
+     s.ok && typeof s.ratio === 'number' && Array.isArray(s.verdict)
+     && Array.isArray(s.trace),
+     JSON.stringify(Object.keys(s)).slice(0, 90));
+}
 ok('no runtime errors', errs.length === 0, errs.join(' / '));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
