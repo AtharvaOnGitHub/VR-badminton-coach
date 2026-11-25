@@ -3,102 +3,113 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shadow — badminton practice that waits to be asked</title>
+<title>Shadow — badminton drill trainer</title>
 <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
 <header>
   <div class="brand">
     <span class="logo">◗</span>
-    <div>
-      <h1>Shadow</h1>
-      <p class="tag">Badminton shadow practice. It waits until you ask.</p>
-    </div>
+    <div><h1>Shadow</h1><p class="tag">Badminton drills at home. The shuttle always flies.</p></div>
   </div>
   <nav id="nav">
-    <button data-view="practice" class="on">Practice</button>
+    <button data-view="play" class="on">Drill</button>
     <button data-view="review">Review</button>
     <button data-view="coach">Coach</button>
-    <button data-view="trace">Trace</button>
+    <button data-view="setup">Room</button>
   </nav>
 </header>
 
 <div id="placeholder-banner">
-  <strong>Hardware placeholder.</strong> On a headset, a swing is detected from controller
-  motion. Here, <em>Swing</em> plays one recorded swing from the simulated session so the
-  interaction can be inspected in a browser.
+  <strong>Headset placeholder.</strong> In the headset your head and racket are tracked and
+  you physically step. Here, <kbd>←</kbd><kbd>→</kbd> step and <kbd>Space</kbd> swings — the
+  timing of that press sets where you meet the shuttle, which is the variable that matters.
 </div>
 
 <main>
-  <!-- ───────────────────────── PRACTICE ───────────────────────── -->
-  <section id="practice" class="view on">
-    <div class="court">
-      <div class="counter">
-        <span id="swing-count">0</span>
-        <small>swings</small>
-      </div>
-      <div class="block-line">Block <span id="block-no">1</span> · <span id="block-progress">0 of 10</span></div>
-      <div id="swing-pulse" class="pulse"></div>
-      <p class="quiet" id="practice-quiet">Nothing is shown while you practise. That is deliberate.</p>
-      <div id="nudge" class="nudge" hidden></div>
-      <div class="controls">
-        <button id="btn-swing" class="primary">Swing</button>
-        <button id="btn-block">Play the rest of this block</button>
-      </div>
-      <div id="tracking-warn" class="warn" hidden></div>
+<!-- ───────── DRILL ───────── -->
+<section id="play" class="view on">
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hud hud-tl">
+      <div class="score"><span id="in-count">0</span><small>in target</small></div>
+      <div class="of">of <span id="shot-count">0</span></div>
     </div>
-  </section>
+    <div class="hud hud-tr" id="remap-chip"></div>
+    <div class="hud hud-bc" id="verdict"></div>
+    <div class="hud hud-bl" id="offer" hidden></div>
+    <div class="hud hud-br" id="keys">
+      <kbd>Space</kbd> swing &nbsp; <kbd>←</kbd><kbd>→</kbd> step &nbsp;
+      <kbd>P</kbd> freeze &nbsp; <kbd>Enter</kbd> next
+    </div>
+  </div>
+  <div class="bar">
+    <button id="btn-feed" class="primary">Feed a shuttle</button>
+    <button id="btn-swing">Swing</button>
+    <button id="btn-freeze">Freeze the shuttle</button>
+    <label class="switch"><input type="checkbox" id="view-side"> Side view</label>
+    <span class="grow"></span>
+    <span class="quiet" id="block-line">Block 1 · 0 of 10</span>
+  </div>
+</section>
 
-  <!-- ───────────────────────── REVIEW ───────────────────────── -->
-  <section id="review" class="view">
-    <div class="rowhead">
-      <h2>Your session</h2>
-      <div>
-        <label class="switch">
-          <input type="checkbox" id="global-mute">
-          <span>Do not offer anything. I will ask.</span>
-        </label>
-        <button id="btn-review" class="primary">Review my swings</button>
-      </div>
+<!-- ───────── REVIEW ───────── -->
+<section id="review" class="view">
+  <div class="rowhead">
+    <h2>Review</h2>
+    <div>
+      <label class="switch"><input type="checkbox" id="global-mute"> Don't offer. I'll ask.</label>
+      <button id="btn-review" class="primary">What happened?</button>
     </div>
-    <p class="hint" id="review-hint">You have not asked yet. Nothing has been computed into a
-      suggestion for you to read.</p>
-    <div id="observations"></div>
-    <div id="muted-box" hidden>
-      <h3>Muted this session</h3>
-      <div id="muted-list"></div>
-    </div>
-  </section>
+  </div>
+  <p class="hint" id="review-hint">The shuttle tells you where it went on every rep.
+    This is the other thing — why. It waits until you ask for it.</p>
+  <div id="observations"></div>
+  <div id="muted-box" hidden><h3>Muted this session</h3><div id="muted-list"></div></div>
+</section>
 
-  <!-- ───────────────────────── COACH ───────────────────────── -->
-  <section id="coach" class="view">
-    <div class="rowhead">
-      <h2>Coach view <span class="ro">read only</span></h2>
-      <button id="btn-share" class="primary">Share this session with a coach</button>
-    </div>
-    <p class="hint">This surface shows confidence, noise and dropped swings. The player's
-      view does not, because the player has one decision to make and the coach has to judge
-      whether the data supports it.</p>
-    <div id="coach-locked" class="locked">
-      <p><strong>Not shared.</strong> Sharing is the only action here that leaves the player's
-      control and cannot be undone, so it needs a deliberate act rather than a default.</p>
-    </div>
-    <div id="coach-body" hidden>
-      <div id="coach-cards" class="cards"></div>
-      <h3>Every swing</h3>
-      <div class="tablewrap"><table id="swing-table"></table></div>
-    </div>
-  </section>
+<!-- ───────── COACH ───────── -->
+<section id="coach" class="view">
+  <div class="rowhead">
+    <h2>Coach view <span class="ro">read only</span></h2>
+    <button id="btn-share" class="primary">Share this session</button>
+  </div>
+  <p class="hint">Confidence, spread and the reps the player muted. The player does not
+    see this surface, because they have one thing to try next and the coach has to judge
+    whether the data supports it.</p>
+  <div id="coach-locked" class="locked"><p><strong>Not shared.</strong> This is the one
+    action that leaves the player's headset and cannot be taken back, so it needs a
+    deliberate act rather than a default.</p></div>
+  <div id="coach-body" hidden>
+    <div id="coach-cards" class="cards"></div>
+    <h3>Every rep</h3>
+    <div class="tablewrap"><table id="rep-table"></table></div>
+  </div>
+</section>
 
-  <!-- ───────────────────────── TRACE ───────────────────────── -->
-  <section id="trace" class="view">
-    <h2>Decision trace</h2>
-    <p class="hint">Built from what the policy engine actually did, not from a summary.
-      Every state change, every suppression, every override.</p>
-    <div class="tablewrap"><table id="trace-table"></table></div>
-  </section>
+<!-- ───────── ROOM ───────── -->
+<section id="setup" class="view">
+  <h2>Your room</h2>
+  <p class="hint">A jump smash puts the racket at about 3.0&nbsp;m. Most ceilings are 2.4&nbsp;m.
+    Rather than drop the stroke, the virtual racket reaches further than the one in your
+    hand — but you can see the figure and you can turn it down.</p>
+  <div class="grid2">
+    <div class="card">
+      <label>Ceiling height <output id="ceil-out">2.40 m</output></label>
+      <input type="range" id="ceil" min="2.1" max="4.0" step="0.05" value="2.4">
+      <label>Your standing racket reach <output id="reach-out">2.35 m</output></label>
+      <input type="range" id="reach" min="1.9" max="2.8" step="0.05" value="2.35">
+    </div>
+    <div class="card">
+      <label>Reach remap <output id="rf-out">1.36×</output></label>
+      <input type="range" id="rf" min="1" max="1.6" step="0.01" value="1.36">
+      <p class="s" id="remap-expl"></p>
+      <p class="s"><strong>Floor needed:</strong> about two arm-spans one way, one the
+        other. Your sofa and lamp fade in through passthrough as you get near them.</p>
+    </div>
+  </div>
+</section>
 </main>
-
 <script type="module" src="src/app.js"></script>
 </body>
 </html>

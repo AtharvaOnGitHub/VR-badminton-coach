@@ -1,53 +1,54 @@
-// Analysis layer. Deliberately simple and SIMULATED.
+// What separates the reps that landed from the reps that did not.
 //
-// Scope note: this project is about *who controls when an analysis is delivered*,
-// not about whether the analysis is accurate. The analysis is therefore kept to
-// transparent descriptive statistics against the player's own early-session
-// baseline. It never compares the player to an expert model, because a single
-// expert reference is the normative assumption the project argues against.
+// Deliberately simple and transparent. The project's question is when this is
+// delivered and who may refuse it, not whether it is a clever model. It compares
+// the player against themselves - the reps that worked - and never against an
+// expert recording, which is the normative assumption A1 argued against.
 
-const BASELINE_N = 12;   // first N swings define the player's own baseline
+const LABEL = {
+  ahead:   { name: 'Contact point',  unit: ' m', say: (d) => d < 0
+               ? `you met the shuttle ${Math.abs(d).toFixed(2)} m further back`
+               : `you met the shuttle ${d.toFixed(2)} m further in front` },
+  vHeight: { name: 'Contact height', unit: ' m', say: (d) => d < 0
+               ? `you hit it ${Math.abs(d).toFixed(2)} m lower`
+               : `you hit it ${d.toFixed(2)} m higher` },
+  lateral: { name: 'Stepping across', unit: ' m', say: (d) =>
+               `the shuttle was ${Math.abs(d).toFixed(2)} m further to your side` },
+};
 
-function mean(xs) { return xs.reduce((a, b) => a + b, 0) / xs.length; }
-function sd(xs) {
-  const m = mean(xs);
-  return Math.sqrt(mean(xs.map(x => (x - m) ** 2)));
-}
-
-export function baselineOf(swings, key) {
-  const usable = swings.filter(s => s.trackingQuality > 0.6).slice(0, BASELINE_N);
-  const xs = usable.map(s => s[key]);
-  return { mean: mean(xs), sd: sd(xs), n: xs.length };
-}
+const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+const sd = xs => { const m = mean(xs); return Math.sqrt(mean(xs.map(x => (x - m) ** 2))); };
 
 /**
- * Produce candidate observations for a window of swings.
- * Each observation carries its own evidence: the swing ids it came from.
- * Confidence is |z| against the player's own baseline, squashed to 0..1.
+ * Compare the misses in a window against the reps that landed in the target.
+ * Returns one observation per variable, strongest first.
  */
-export function observe(swings, windowIds) {
-  const window = swings.filter(s => windowIds.includes(s.id));
-  const usable = window.filter(s => s.trackingQuality > 0.6);
-  const dropped = window.length - usable.length;
-  if (usable.length < 3) return { observations: [], dropped, usable: usable.length };
+export function observe(reps, windowIds) {
+  const win = reps.filter(r => windowIds.includes(r.id) && r.swung);
+  const good = reps.filter(r => r.swung && r.outcome === 'in');
+  const bad = win.filter(r => r.outcome !== 'in');
+  const missed = reps.filter(r => windowIds.includes(r.id) && !r.swung).length;
+  if (bad.length < 2 || good.length < 2) {
+    return { observations: [], bad: bad.length, good: good.length, missed };
+  }
 
   const out = [];
-  for (const key of ['swingPlane', 'prepTime', 'contactY', 'peakSpeed']) {
-    const base = baselineOf(swings, key);
-    if (base.sd === 0) continue;
-    const now = mean(usable.map(s => s[key]));
-    const z = (now - base.mean) / base.sd;
-    const confidence = Math.min(1, Math.abs(z) / 3);
+  for (const key of ['ahead', 'vHeight', 'lateral']) {
+    const g = good.map(r => r[key]), b = bad.map(r => r[key]);
+    const spread = sd(g) || 0.01;
+    const delta = mean(b) - mean(g);
+    const z = delta / spread;
+    if (!isFinite(z)) continue;
     out.push({
-      key,
-      z: +z.toFixed(2),
-      delta: +(now - base.mean).toFixed(1),
-      confidence: +confidence.toFixed(2),
-      evidence: usable.map(s => s.id),
-      baseline: { mean: +base.mean.toFixed(1), n: base.n },
-      current: +now.toFixed(1),
+      key, delta: +delta.toFixed(3), z: +z.toFixed(2),
+      confidence: +Math.min(1, Math.abs(z) / 2.5).toFixed(2),
+      evidence: bad.map(r => r.id),
+      against: good.map(r => r.id),
+      label: LABEL[key].name,
+      sentence: `On the reps that missed, ${LABEL[key].say(delta)} than on the `
+              + `${good.length} that landed in the target.`,
     });
   }
-  out.sort((a, b) => b.confidence - a.confidence);
-  return { observations: out, dropped, usable: usable.length };
+  out.sort((a, b2) => b2.confidence - a.confidence);
+  return { observations: out, bad: bad.length, good: good.length, missed };
 }
