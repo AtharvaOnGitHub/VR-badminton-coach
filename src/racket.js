@@ -34,8 +34,12 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated } = {}) {
     while (alpha >  Math.PI) alpha -= 2 * Math.PI;
     while (alpha < -Math.PI) alpha += 2 * Math.PI;
     const mirror = hand === 'left' ? -1 : 1;
+    // With a rest pose calibrated, zero deviation means a flat face. Tilting the
+    // racket head forward closes it (negative, a smash); tilting back opens it
+    // (positive, a clear). The 0.8 gain is a first guess and wants tuning against
+    // a real phone in a real swing.
     return {
-      pitchDeg: Math.max(-40, Math.min(55, -(beta * DEG) + 20)),
+      pitchDeg: Math.max(-40, Math.min(55, -(beta * DEG) * 0.8)),
       yawDeg:   Math.max(-35, Math.min(35, alpha * DEG * 0.35 * mirror)),
       rollDeg:  gamma * DEG * mirror,
     };
