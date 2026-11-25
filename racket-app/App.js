@@ -95,7 +95,8 @@ export default function App() {
   const [live, setLive] = useState({ a: 0, b: 0, g: 0, w: 0 });
   const [hand, setHand] = useState(null);          // 'right' | 'left'
   const [cal, setCal] = useState(null);            // rest pose, averaged
-  const [calibrating, setCalibrating] = useState(false);
+  const [calibrating, setCalibrating] = useState(null);   // null | 'rest' | 'forward'
+  const [aimed, setAimed] = useState(false);
   const [sens, setSens] = useState('normal');
   const [armed, setArmed] = useState(false);       // the drill is running
   const [alert, setAlert] = useState(null);        // { title, detail }
@@ -119,6 +120,8 @@ export default function App() {
   const gRest = useRef(null);
   const lastT = useRef(0);
   const accBuf = useRef(null);
+  const aimBuf = useRef(null);
+  const fwdRef = useRef(null);
 
   const send = (msg) => {
     const sock = ws.current;
@@ -134,7 +137,8 @@ export default function App() {
     sock.onopen = () => {
       sock.send(JSON.stringify({ hello: 'racket' }));
       if (hand) sock.send(JSON.stringify({ type: 'hand', hand }));
-      if (calRef.current) sock.send(JSON.stringify({ type: 'calibration', ref: calRef.current }));
+      if (calRef.current) sock.send(JSON.stringify(
+        { type: 'calibration', ref: calRef.current, fwd: fwdRef.current }));
       setStatus('connected');
       setPage((p) => (p === 0 ? 1 : p));
     };
@@ -201,10 +205,12 @@ export default function App() {
         calBuf.current.push({ a: r.alpha, b: r.beta, g: r.gamma });
         if (accV) accBuf.current?.push(accV);
       }
+      if (aimBuf.current) aimBuf.current.push(Q.rotate(qRef2.current, [0, 1, 0]));
 
       const frame = {
         t: Date.now(),
         ref: calRef.current,
+        fwd: fwdRef.current,
         rot: { alpha: r.alpha, beta: r.beta, gamma: r.gamma },
         q: qRef2.current,
         rate: { x: wx, y: wy, z: wz }, w,
@@ -264,17 +270,21 @@ export default function App() {
     return () => { cancelled = true; sub.current?.remove(); };
   }, []);
 
+  /* Two poses. The first fixes which way is down, the second which way the player
+     is facing. Nothing the phone can sense tells it the second, so it is shown
+     once rather than assumed, which is what two earlier guesses got wrong. */
   const startCalibration = () => {
     if (calibrating) return;
     tick();
-    setCalibrating(true);
+    setCalibrating('rest');
+    setAimed(false);
     calBuf.current = [];
     accBuf.current = [];
     setTimeout(() => {
       const buf = calBuf.current || [];
       const accs = accBuf.current || [];
       calBuf.current = null; accBuf.current = null;
-      setCalibrating(false);
+      setCalibrating(null);
       if (buf.length < 5) { wrong();
         setAlert({ title: 'No motion data', detail: 'The phone sent nothing while measuring. Check that motion access is allowed.' });
         return; }
@@ -288,18 +298,41 @@ export default function App() {
         : null;
       const ref = { a: avg('a'), b: avg('b'), g: avg('g') };
       calRef.current = ref;
+      fwdRef.current = null;
       setCal(ref);
       // The phone is at the player's hip and out of sight here, so this one
       // confirmation has to be felt rather than read.
       good();
       send({ type: 'calibration', ref });
-      setPage((p) => (p === 2 ? 3 : p));
+    }, CAL_MS);
+  };
+
+  /** Second pose: racket held straight out in front, level. */
+  const startAim = () => {
+    if (calibrating || !cal) return;
+    tick();
+    setCalibrating('forward');
+    aimBuf.current = [];
+    setTimeout(() => {
+      const buf = aimBuf.current || [];
+      aimBuf.current = null;
+      setCalibrating(null);
+      if (buf.length < 5) { wrong();
+        setAlert({ title: 'Nothing measured', detail: 'Hold the racket out in front and try again.' });
+        return; }
+      const sum = buf.reduce((s, v) => [s[0]+v[0], s[1]+v[1], s[2]+v[2]], [0, 0, 0]);
+      const f = Q.unit(sum);
+      fwdRef.current = f;
+      setAimed(true);
+      good();
+      send({ type: 'calibration', ref: calRef.current, fwd: f });
+      setPage(3);
     }, CAL_MS);
   };
 
   const chooseHand = (h) => { tick(); setHand(h); send({ type: 'hand', hand: h }); setPage(2); };
 
-  const ready = !!hand && !!cal && status === 'connected';
+  const ready = !!hand && !!cal && aimed && status === 'connected';
 
   const startSession = () => {
     if (!ready) return;
@@ -436,14 +469,30 @@ export default function App() {
         </View>
       </View>
 
-      <Pressable style={[s.calBtn, calibrating && s.calBtnBusy]}
-        onPress={startCalibration} disabled={calibrating}>
+      <Text style={s.poseHead}>1 &middot; Let your arm hang</Text>
+      <Pressable style={[s.calBtn, calibrating === 'rest' && s.calBtnBusy]}
+        onPress={startCalibration} disabled={!!calibrating}>
         <Text style={s.btnText}>
-          {calibrating ? 'Hold still…' : cal ? 'Set again' : 'Set my rest position'}
+          {calibrating === 'rest' ? 'Hold still\u2026' : cal ? 'Set rest again' : 'Set my rest position'}
         </Text>
       </Pressable>
-      {cal && !calibrating &&
-        <Text style={s.calOk}>Rest position set.</Text>}
+      {cal && calibrating !== 'rest' && <Text style={s.calOk}>Rest position set.</Text>}
+
+      <Text style={[s.poseHead, !cal && s.poseOff]}>2 &middot; Now point it at the net</Text>
+      <Text style={[s.calBody, !cal && s.poseOff]}>
+        Raise the racket straight out in front of you, level, as if you were about to
+        push the shuttle back. Hold it there and tap. This is the only way the phone
+        can know which way you are facing: gravity tells it which way is down, and
+        nothing tells it which way is forward.
+      </Text>
+      <Pressable style={[s.calBtn, calibrating === 'forward' && s.calBtnBusy,
+                         !cal && s.calBtnOff]}
+        onPress={startAim} disabled={!cal || !!calibrating}>
+        <Text style={s.btnText}>
+          {calibrating === 'forward' ? 'Hold it there\u2026' : aimed ? 'Aim again' : 'Aim'}
+        </Text>
+      </Pressable>
+      {aimed && !calibrating && <Text style={s.calOk}>Pointing down the court.</Text>}
     </Chrome>
   );
 
@@ -459,6 +508,8 @@ export default function App() {
         <Text style={s.readyNote}>
           {ready
             ? `${hand === 'left' ? 'Left' : 'Right'} handed, rest position set. Watch the court.`
+            : !cal ? 'Set your rest position first.'
+            : !aimed ? 'One more: hold the racket out in front and tap Aim.'
             : 'Reconnect the phone to start.'}
         </Text>
       </View>
@@ -550,6 +601,9 @@ const s = StyleSheet.create({
   calBtn: { backgroundColor: '#1f6f4a', borderRadius: 8, paddingVertical: 11,
             alignItems: 'center', marginTop: 11 },
   calBtnBusy: { backgroundColor: '#2d4a3c' },
+  calBtnOff: { backgroundColor: '#17222a', borderWidth: 1, borderColor: '#243039' },
+  poseHead: { color: '#cfd8e2', fontSize: 13, fontWeight: '700', marginTop: 18, marginBottom: 7 },
+  poseOff: { opacity: 0.4 },
   calOk: { color: '#7ff0b4', fontSize: 11.5, marginTop: 10, lineHeight: 16 },
 
   startBtn: { backgroundColor: '#2f8f5f', borderRadius: 11, paddingVertical: 18,

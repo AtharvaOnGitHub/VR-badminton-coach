@@ -72,7 +72,10 @@ page.on('pageerror', e => errs.push(e.message));
 await page.goto('http://localhost:4178/', { waitUntil: 'networkidle' });
 await sleep(600);
 phone.send(JSON.stringify({ type: 'hand', hand: 'right' }));
-phone.send(JSON.stringify({ type: 'calibration', ref: { a: 0, b: 0, g: -Math.PI / 2 } }));
+// the second calibration pose: the racket pointed down the court. In the rest
+// frame the phone's x axis points behind the player, so forward is -x.
+phone.send(JSON.stringify({ type: 'calibration', ref: { a: 0, b: 0, g: -Math.PI / 2 },
+                            fwd: [-1, 0, 0] }));
 await sleep(500);
 
 console.log('\nTEST BENCH');
