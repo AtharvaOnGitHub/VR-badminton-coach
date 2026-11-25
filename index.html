@@ -17,6 +17,7 @@
     <button data-view="review">Review</button>
     <button data-view="coach">Coach</button>
     <button data-view="setup">Room</button>
+    <button data-view="test">Test</button>
   </nav>
 </header>
 
@@ -30,7 +31,7 @@
 
 <main>
 <!-- ───────── DRILL ───────── -->
-<section id="play" class="view on">
+<div id="stagewrap">
   <div class="stage">
     <canvas id="c"></canvas>
     <div class="hud hud-tl">
@@ -114,6 +115,9 @@
       </div>
     </div>
   </div>
+</div>
+
+<section id="play" class="view on">
   <div class="bar">
     <button id="btn-feed" class="primary" disabled>Feed a shuttle</button>
     <button id="btn-swing" disabled>Swing</button>
@@ -175,6 +179,36 @@
     <h3>Every rep</h3>
     <div class="tablewrap"><table id="rep-table"></table></div>
   </div>
+</section>
+
+<!-- ───────── TEST BENCH ───────── -->
+<section id="test" class="view">
+  <div class="rowhead">
+    <h2>Test bench <span class="ro">same racket, same calibration</span></h2>
+    <div>
+      <button id="t-start" class="primary">Run the set</button>
+      <button id="t-stop">Stop</button>
+    </div>
+  </div>
+  <p class="hint">Four movements, run back to back. Follow the rings in the court above:
+    reach one, hold it for a moment, and the next lights up. Each movement is recorded
+    on its own, with no button to press while you are moving.</p>
+  <div class="tgrid">
+    <div class="card" id="t-now">
+      <div class="k">Not running</div>
+      <div class="v" id="t-name">—</div>
+      <div class="s" id="t-say">Press <strong>Run the set</strong>. Your phone needs to be
+        connected and calibrated, the same as for a drill.</div>
+      <div id="t-dots" class="dots"></div>
+    </div>
+    <div class="card">
+      <div class="k">Live</div>
+      <div class="s" id="t-live">—</div>
+      <div class="k" style="margin-top:10px">Tests</div>
+      <ol class="tlist" id="t-list"></ol>
+    </div>
+  </div>
+  <p class="hint" id="t-done" hidden></p>
 </section>
 
 <!-- ───────── ROOM ───────── -->

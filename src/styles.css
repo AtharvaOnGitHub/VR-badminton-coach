@@ -240,3 +240,18 @@ td.ok{color:var(--accent);font-weight:600}
   border:1px solid var(--line);background:#fff;color:var(--ink);max-width:230px}
 #btn-rec.on{background:#b3261e;color:#fff;border-color:#b3261e}
 #rec-state{font-size:12px}
+
+/* test bench */
+#stagewrap[hidden]{display:none}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+#t-say{white-space:pre-line;line-height:1.5}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.dots .dot{font-size:11.5px;padding:4px 10px;border-radius:14px;background:#eef0f2;
+  color:var(--mut)}
+.dots .dot.live{background:#fdf0d8;color:var(--warn);font-weight:600}
+.dots .dot.done{background:var(--accent-soft);color:var(--accent)}
+.tlist{margin:6px 0 0;padding-left:20px;font-size:13px;color:var(--mut)}
+.tlist li.live{color:var(--warn);font-weight:600}
+.tlist li.done{color:var(--accent)}
+.tlist li.gaveup{color:#b3261e}
+#t-live{font-variant-numeric:tabular-nums;font-size:12px}

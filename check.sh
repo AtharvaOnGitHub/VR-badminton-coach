@@ -11,6 +11,12 @@ else
   OWN=1
   sleep 1
 fi
-trap '[ "$OWN" = 1 ] && kill "$SRV" 2>/dev/null' EXIT
 
-node tools/check.mjs
+node relay/server.mjs >/dev/null 2>&1 &
+RELAY=$!
+trap '[ "$OWN" = 1 ] && kill "$SRV" 2>/dev/null; kill "$RELAY" 2>/dev/null' EXIT
+sleep 0.6
+
+node tools/check.mjs || FAILED=1
+node tools/bench-check.mjs || FAILED=1
+exit ${FAILED:-0}

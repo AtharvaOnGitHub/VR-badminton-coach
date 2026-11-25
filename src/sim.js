@@ -70,6 +70,34 @@ export function createSim(canvas, hooks = {}) {
   racket.add(forearm, grip, shaft, head, face);
   scene.add(racket);
 
+  /* ---------- test-bench checkpoints ----------
+   * Waypoints the player steers the racket through, shown in the same court the
+   * drill uses because they are testing the same racket. A checkpoint is a
+   * direction, drawn at the end of the player's reach. */
+  const cpGroup = new THREE.Group(); scene.add(cpGroup);
+  let checkpoints = [];
+  const CP_COL = { todo: 0x6f7d8a, live: 0xffc46b, done: 0x3fd08a };
+
+  function setCheckpoints(list = []) {
+    for (const c of cpGroup.children.slice()) {
+      cpGroup.remove(c); c.geometry.dispose(); c.material.dispose();
+    }
+    checkpoints = list.map((cp, i) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.17, 0.022, 10, 26),
+        new THREE.MeshBasicMaterial({ color: CP_COL.todo, transparent: true, opacity: 0.6 }));
+      cpGroup.add(ring);
+      return { ...cp, i, ring, state: 'todo' };
+    });
+  }
+  function setCheckpointState(i, state) {
+    const cp = checkpoints[i]; if (!cp) return;
+    cp.state = state;
+    cp.ring.material.color.set(CP_COL[state] ?? CP_COL.todo);
+    cp.ring.material.opacity = state === 'live' ? 0.95 : state === 'done' ? 0.5 : 0.45;
+    cp.ring.scale.setScalar(state === 'live' ? 1.25 : 1);
+  }
+
   const bodyMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.28, 0.34, 28),
     new THREE.MeshBasicMaterial({ color: 0x6fd3ff, transparent: true, opacity: 0.55 }));
@@ -171,6 +199,7 @@ export function createSim(canvas, hooks = {}) {
   // scratch objects for the racket pose, so the frame loop allocates nothing
   const shoulderPos = new THREE.Vector3(), armDir = new THREE.Vector3();
   const lookTarget = new THREE.Vector3(), tmpV = new THREE.Vector3();
+  const cpDir = new THREE.Vector3();
   const xAxis = new THREE.Vector3(), yAxis = new THREE.Vector3(), zAxis = new THREE.Vector3();
   const basis = new THREE.Matrix4();
 
@@ -418,6 +447,18 @@ export function createSim(canvas, hooks = {}) {
       f.material.opacity += (want - f.material.opacity) * Math.min(1, dt * 6);
     }
 
+    // checkpoints ride at the end of the player's reach, facing the shoulder
+    if (checkpoints.length) {
+      const sideC = (hooks.racketHand?.() === 'left') ? -1 : 1;
+      shoulderPos.set(player.x + sideC * 0.18, BODY.shoulderY, player.z);
+      const R = reachRadius(remapFactor) * 0.92;
+      for (const cp of checkpoints) {
+        cpDir.set(cp.dir[0] * sideC, cp.dir[1], cp.dir[2]).normalize();
+        cp.ring.position.copy(shoulderPos).addScaledVector(cpDir, R);
+        cp.ring.lookAt(shoulderPos);
+      }
+    }
+
     if (cam === camMirror) {
       const sideM = (hooks.racketHand?.() === 'left') ? -1 : 1;
       camMirror.position.set(player.x + sideM * 2.2, 2.05, player.z + 2.4);
@@ -438,6 +479,12 @@ export function createSim(canvas, hooks = {}) {
     get offerPause() { return offerPause; },
     get player() { return { ...player }; },
     get reach() { return reachRadius(remapFactor); },
+    setCheckpoints, setCheckpointState,
+    /** Where the checkpoint for direction `dir` sits, mirrored for the hand. */
+    checkpointDir(dir) {
+      const s = (hooks.racketHand?.() === 'left') ? -1 : 1;
+      return [dir[0] * s, dir[1], dir[2]];
+    },
     setView(v) { cam = v === 'side' ? camSide : v === 'mirror' ? camMirror : camFP; },
     get view() { return cam === camSide ? 'side' : cam === camMirror ? 'mirror' : 'fp'; },
     get remap() { return { plan, factor: remapFactor, label: remapLabel(plan, remapFactor) }; },

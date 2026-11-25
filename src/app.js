@@ -1,6 +1,7 @@
 import { createSim } from './sim.js';
 import { createRacket } from './racket.js';
 import { observe } from './analysis.js';
+import { createBench } from './testbench.js';
 import { newPolicyState, step as policyStep, dismiss, unmute, setGlobalMute,
          THRESHOLDS } from './policy.js';
 
@@ -287,10 +288,17 @@ $('#rf').addEventListener('input', e => { sim.setRemap(+e.target.value); paintRe
 /* ---------- nav ---------- */
 $('#nav').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
+  const view = b.dataset.view;
   document.querySelectorAll('#nav button').forEach(x => x.classList.toggle('on', x === b));
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === b.dataset.view));
-  if (b.dataset.view === 'coach') renderCoach();
-  if (b.dataset.view === 'review') renderReview();
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === view));
+  // the drill and the test bench share one court, because they share one racket
+  $('#stagewrap').hidden = !(view === 'play' || view === 'test');
+  $('.bar').hidden = view !== 'play';
+  $('#lobby').hidden = view === 'test' || session;
+  bench.setActive(view === 'test');
+  if (view === 'play' && !session) paintLobby();
+  if (view === 'coach') renderCoach();
+  if (view === 'review') renderReview();
 });
 
 /* ---------- review ---------- */
@@ -434,6 +442,8 @@ function renderCoach() {
       <td>${r.swung ? (r.stepped ? 'yes' : 'no') : '—'}</td>
       <td>${r.swung ? r.pitchDeg.toFixed(0) + '°' : '—'}</td></tr>`).join('');
 }
+
+const bench = createBench({ sim, racket, $ });
 
 // exposed so the behaviour can be inspected from the console and by tools/shots.mjs.
 // startSession is here so the behaviour checks can arm the drill without a phone.
