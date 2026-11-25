@@ -101,6 +101,15 @@ export function createSim(canvas, hooks = {}) {
     line.geometry = new THREE.BufferGeometry().setFromPoints(pts);
   };
 
+  // Where the shuttle is over the floor. Without it there is no way to tell a
+  // shuttle three metres away from one about to arrive: both sit in the same
+  // place on screen.
+  const shuttleShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.11, 18),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+  shuttleShadow.rotation.x = -Math.PI / 2; shuttleShadow.position.y = 0.012;
+  shuttleShadow.visible = false; scene.add(shuttleShadow);
+
   const landMark = new THREE.Mesh(
     new THREE.RingGeometry(0.14, 0.2, 20),
     new THREE.MeshBasicMaterial({ color: 0xff9f43 }));
@@ -161,6 +170,7 @@ export function createSim(canvas, hooks = {}) {
   const clock = new THREE.Clock();
   // scratch objects for the racket pose, so the frame loop allocates nothing
   const shoulderPos = new THREE.Vector3(), armDir = new THREE.Vector3();
+  const lookTarget = new THREE.Vector3(), tmpV = new THREE.Vector3();
   const xAxis = new THREE.Vector3(), yAxis = new THREE.Vector3(), zAxis = new THREE.Vector3();
   const basis = new THREE.Matrix4();
 
@@ -173,6 +183,7 @@ export function createSim(canvas, hooks = {}) {
     // player drifts across the session and every rep starts somewhere different.
     player.x = 0; player.z = PLAYER_Z; player.moved = false;
     landMark.visible = false; contactMark.visible = false; ghost.visible = false;
+    shuttleShadow.visible = false;
     setLine(trailOut, []);
     rep = { id: reps.length, swung: false, resolved: false };
     hooks.onState?.({ state, rep: reps.length + 1 });
@@ -195,7 +206,13 @@ export function createSim(canvas, hooks = {}) {
 
   function swing(racketIn) {
     if (state !== S.INCOMING || rep.swung || rep.resolved) return;
-    const s = sampleFlight(tNow());
+    // The phone can only tell the court a swing happened once it has slowed down
+    // again, so the message arrives a few hundred milliseconds after the strings
+    // passed through the air. It carries the age of its own peak frame, and the
+    // shuttle is sampled at that moment rather than at the moment of arrival. A
+    // shuttle travels about two metres in the time that costs.
+    const lag = Math.max(0, Math.min(0.5, (racketIn?.ageMs ?? 0) / 1000));
+    const s = sampleFlight(tNow() - lag);
     const r = racketIn || { pitchDeg: -12, yawDeg: 0, power: 0.75, source: 'keyboard' };
 
     const c = evaluateContact({ player, shuttle: s, remapFactor,
@@ -232,7 +249,7 @@ export function createSim(canvas, hooks = {}) {
       : 'short';
 
     Object.assign(rep, {
-      swung: true, resolved: true,
+      swung: true, resolved: true, lagMs: Math.round(lag * 1000),
       ahead: c.ahead, lateral: c.lateral, vHeight: c.height,
       underneath: c.underneath, stretched: c.stretched, moved: player.moved,
       facePitch: r.pitchDeg, power: +r.power.toFixed(2), racket: r.source,
@@ -324,6 +341,10 @@ export function createSim(canvas, hooks = {}) {
     if (flight && ((state === S.INCOMING) || state === S.OUT)) {
       const s = sampleFlight(tF);
       shuttleMesh.position.set(s.x, s.y, s.z);
+      shuttleShadow.position.set(s.x, 0.012, s.z);
+      shuttleShadow.scale.setScalar(1 + Math.max(0, s.y) * 0.35);
+      shuttleShadow.material.opacity = Math.max(0.06, 0.34 - s.y * 0.05);
+      shuttleShadow.visible = true;
       if (state === S.INCOMING) {
         setLine(trailIn, flight.pts.filter(p => p.t <= tF)
           .map(p => new THREE.Vector3(p.x, p.y, p.z)));
@@ -334,12 +355,16 @@ export function createSim(canvas, hooks = {}) {
     camFP.position.set(player.x, HEAD_Y, player.z);
     // A player watches the shuttle, not the far wall, and that is also what keeps
     // their own racket inside the view at the moment it matters.
+    // A head turns towards the shuttle. It does not lock onto it. Pointing the
+    // camera straight at the shuttle keeps it dead centre for the whole flight,
+    // which removes every cue the player has for judging when it arrives, so the
+    // turn is partial and the court stays as the frame of reference.
+    lookTarget.set(player.x * 0.35, 1.75, -3.0);
     if (flight && (state === S.INCOMING || state === S.OUT)) {
       const look = sampleFlight(tF);
-      camFP.lookAt(look.x * 0.6, Math.max(1.2, Math.min(3.2, look.y)), look.z);
-    } else {
-      camFP.lookAt(player.x * 0.35, 1.75, -3.0);
+      lookTarget.lerp(tmpV.set(look.x, Math.max(1.1, Math.min(3.0, look.y)), look.z), 0.4);
     }
+    camFP.lookAt(lookTarget);
     bodyMarker.position.set(player.x, 0.03, player.z);
     const sh = sampleFlight(tF);
     const reach = (state === S.INCOMING && flight)

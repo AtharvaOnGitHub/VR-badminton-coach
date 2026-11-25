@@ -123,6 +123,9 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
           pitchDeg: state.pitchDeg, yawDeg: state.yawDeg,
           power: Math.max(0.15, Math.min(1, (m.w ?? 0) / SWING_FULL)),
           w: m.w ?? 0, source: 'phone',
+          // how long ago the peak of the stroke was, measured on the phone so no
+          // clock has to agree with any other clock
+          ageMs: m.ageMs ?? 0,
         });
       }
     };

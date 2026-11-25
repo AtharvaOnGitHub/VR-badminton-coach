@@ -68,7 +68,7 @@ const run = async () => {
 
   console.log('\n1. SWINGING AT NOTHING IS A WHIFF');
   const early = await rep(page, { delay: 250 });
-  const late  = await rep(page, { delay: 1350, dz: 2 });   // backed off, swung early
+  const late = await rep(page, { delay: 1350, dz: 2 });   // backed off, swung early
   console.log(`  swung far too early      -> ${early.outcome} (${early.reason}, ${early.dist} m away)`);
   console.log(`  too far back to reach it -> ${late.outcome} (${late.reason ?? '-'}, ${late.dist} m away, reach ${late.reach})`);
   ok('a swing with the shuttle metres away is a whiff, not a shot', early.outcome === 'whiff');
@@ -197,6 +197,23 @@ const run = async () => {
   ok('twisting the handle turns the face and leaves the shaft alone',
      Math.abs(lift.twistShaft.z + 1) < 0.02 && Math.abs(lift.twistFace.x + 1) > 0.2,
      JSON.stringify(lift.twistShaft));
+
+  console.log('\n7. THE SWING IS READ WHEN IT HAPPENED, NOT WHEN IT ARRIVED');
+  // The phone can only report a stroke once the arm has slowed, so the message is
+  // a few hundred milliseconds old. Uncompensated, the court reads the shuttle
+  // well past the player and calls a reach a miss.
+  const lagged  = await rep(page, { delay: 1600, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test' } });
+  const rewound = await rep(page, { delay: 1600, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test', ageMs: 300 } });
+  const manual  = await rep(page, { delay: 1300, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test' } });
+  console.log(`  swung at 1.60 s, no age    -> contact ${lagged.ahead} m ahead`);
+  console.log(`  swung at 1.60 s, 300 ms old -> contact ${rewound.ahead} m ahead`);
+  console.log(`  swung at 1.30 s, no age    -> contact ${manual.ahead} m ahead`);
+  ok('a stale swing is rewound to when the stroke actually peaked',
+     Math.abs(rewound.ahead - manual.ahead) < 0.25, `${rewound.ahead} vs ${manual.ahead}`);
+  // 0.69 m here. The shuttle has shed most of its speed by the hitting window, so
+  // this is the cheap end of the error; earlier in the flight it is metres.
+  ok('and ignoring that age moves the contact point most of a metre',
+     Math.abs(rewound.ahead - lagged.ahead) > 0.5, `${rewound.ahead} vs ${lagged.ahead}`);
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();

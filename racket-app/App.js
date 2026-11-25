@@ -210,7 +210,9 @@ export default function App() {
           setPeak(Math.round(b.w * 10) / 10);
           setSwings((n) => n + 1);
           if (sock && sock.readyState === 1)
-            sock.send(JSON.stringify({ type: 'swing', ...b }));
+            // the peak of the stroke happened before the arm slowed down; the
+            // court needs to know how long before, or it reads the shuttle late
+            sock.send(JSON.stringify({ type: 'swing', ...b, ageMs: now - b.t }));
         }
       }
   };
@@ -256,7 +258,7 @@ export default function App() {
       // confirmation has to be felt rather than read.
       good();
       send({ type: 'calibration', ref });
-      setPage(3);
+      setPage((p) => (p === 2 ? 3 : p));
     }, CAL_MS);
   };
 
@@ -425,8 +427,12 @@ export default function App() {
         <Pressable style={s.backBtnWide} onPress={() => { tick(); setPage(0); }}>
           <Text style={s.backTxt}>Back</Text>
         </Pressable>
-        <Pressable style={s.backBtnWide} onPress={() => { tick(); setPage(2); }}>
-          <Text style={s.backTxt}>Recalibrate</Text>
+        {/* Recalibrating happens here, standing where you are. Sending the player
+            back a page to do it means taking the phone out of the rest position
+            to press Next again, which is the one thing it must not disturb. */}
+        <Pressable style={[s.backBtnWide, calibrating && s.calBtnBusy]}
+          onPress={startCalibration} disabled={calibrating}>
+          <Text style={s.backTxt}>{calibrating ? 'Hold still…' : 'Recalibrate'}</Text>
         </Pressable>
       </View>
     </View>
