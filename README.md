@@ -137,7 +137,7 @@ there was no way to see it approach; and the phone can only report a swing once 
 slows, so the shuttle was sampled a few hundred milliseconds late. Added a partial head
 turn and a floor shadow, and made the swing carry the age of its own peak frame.
 
-**The racket would not go overhead** (`GIMBALFIX`). Raising the phone above the head
+**The racket would not go overhead** (`5e17d8e`). Raising the phone above the head
 left the racket below it. The platform reports attitude as `ZXY` Euler angles, and that
 order is degenerate when the middle angle reaches 90°; for this grip, raising the arm
 drives it to exactly that point, so the angles stopped describing the phone precisely
