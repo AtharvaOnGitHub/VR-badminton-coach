@@ -215,6 +215,60 @@ const run = async () => {
   ok('and ignoring that age moves the contact point most of a metre',
      Math.abs(rewound.ahead - lagged.ahead) > 0.5, `${rewound.ahead} vs ${lagged.ahead}`);
 
+  console.log('\n8. OVERHEAD, WHERE THE EULER ANGLES GAVE UP');
+  // The platform's ZXY angles are degenerate at a middle angle of ninety degrees,
+  // which for this grip is exactly an overhead. The phone integrates its gyroscope
+  // from the rest pose instead and sends the rotation, so nothing is reconstructed
+  // from angles. These drive the real filter with a real angular velocity.
+  const oh = await page.evaluate(async () => {
+    const m = await import('/src/racket.js');
+    const Q = await import('/racket-app/quat.js');
+    const r = (o) => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
+
+    // raising the arm turns the phone about its own screen normal
+    const sweep = (deg, hz = 60) => {
+      let q = [1, 0, 0, 0];
+      const total = deg * Math.PI / 180, secs = 1, dt = 1 / hz;
+      const rate = [0, 0, -total / secs];                 // rad/s, device frame
+      for (let i = 0; i < hz * secs; i++) q = Q.step(q, rate, dt, null, null);
+      return m.attitudeFromQuat(q, 'right');
+    };
+    return {
+      rest: r(m.attitudeFromQuat([1, 0, 0, 0], 'right').shaft),
+      up45: r(sweep(45).shaft),
+      up90: r(sweep(90).shaft),          // straight overhead: the old failure point
+      up120: r(sweep(120).shaft),        // past vertical, behind the head
+      face90: +sweep(90).pitchDeg.toFixed(1),
+    };
+  });
+  console.log(`  rest        shaft ${JSON.stringify(oh.rest)}`);
+  console.log(`  arm at 45°  shaft ${JSON.stringify(oh.up45)}`);
+  console.log(`  arm at 90°  shaft ${JSON.stringify(oh.up90)}  (overhead)`);
+  console.log(`  arm at 120° shaft ${JSON.stringify(oh.up120)} (behind the head)`);
+  ok('the integrated rest pose is the same forward pose', Math.abs(oh.rest.z + 1) < 0.02);
+  ok('the racket goes fully overhead', oh.up90.y > 0.97, JSON.stringify(oh.up90));
+  ok('and keeps going past vertical instead of flipping',
+     oh.up120.y > 0.4 && oh.up120.z > 0.3, JSON.stringify(oh.up120));
+  ok('the climb is monotonic, with no jump at the old singularity',
+     oh.up45.y > 0.6 && oh.up45.y < oh.up90.y, `${oh.up45.y} then ${oh.up90.y}`);
+
+  // gravity correction must pull a drifting gyro back, and must not fight a swing
+  const drift = await page.evaluate(async () => {
+    const Q = await import('/racket-app/quat.js');
+    const gRest = [-1, 0, 0];                  // at rest the phone's x axis is up
+    const bias = [0, 0, 0.12];                 // 7 deg/s of gyro bias
+    const run = (acc) => {
+      let q = [1, 0, 0, 0];
+      for (let i = 0; i < 60 * 20; i++) q = Q.step(q, bias, 1 / 60, acc, gRest);
+      const v = Q.rotate(q, [-1, 0, 0]);       // where "up" has drifted to
+      return +(Math.acos(Math.max(-1, Math.min(1, -v[0]))) * 180 / Math.PI).toFixed(1);
+    };
+    return { corrected: run([-9.81, 0, 0]), free: run(null) };
+  });
+  console.log(`  20 s at 7°/s of bias: uncorrected ${drift.free}°, corrected ${drift.corrected}°`);
+  ok('gravity correction holds the rest frame against gyro drift',
+     drift.corrected < 8 && drift.free > 100, JSON.stringify(drift));
+
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();
   process.exit(fail ? 1 : 0);

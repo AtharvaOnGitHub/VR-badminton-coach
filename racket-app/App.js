@@ -24,6 +24,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, StatusBar, ScrollView } f
 import { DeviceMotion } from 'expo-sensors';
 import { useKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
+import * as Q from './quat';
 
 const HZ = 60;
 const MIN_GAP_MS = 350;     // refractory period between swings
@@ -112,6 +113,12 @@ export default function App() {
   const armedRef = useRef(false);
   const sensRef = useRef(SENS.normal);
   const lastUi = useRef(0);
+  // orientation, integrated from the gyroscope since calibration. See quat.js for
+  // why this does not go through the platform's Euler angles.
+  const qRef2 = useRef([1, 0, 0, 0]);
+  const gRest = useRef(null);
+  const lastT = useRef(0);
+  const accBuf = useRef(null);
 
   const send = (msg) => {
     const sock = ws.current;
@@ -174,12 +181,25 @@ export default function App() {
         setLive({ a: r.alpha, b: r.beta, g: r.gamma, w });
       }
 
-      if (calBuf.current) calBuf.current.push({ a: r.alpha, b: r.beta, g: r.gamma });
+      const acc = d.accelerationIncludingGravity || null;
+      const accV = acc ? [acc.x || 0, acc.y || 0, acc.z || 0] : null;
+
+      // integrate the gyroscope, corrected towards gravity
+      const tSec = (d.timestamp ?? Date.now() / 1000);
+      const dt = lastT.current ? Math.min(0.1, Math.max(0.002, tSec - lastT.current)) : 1 / HZ;
+      lastT.current = tSec;
+      qRef2.current = Q.step(qRef2.current, [wx, wy, wz], dt, accV, gRest.current);
+
+      if (calBuf.current) {
+        calBuf.current.push({ a: r.alpha, b: r.beta, g: r.gamma });
+        if (accV) accBuf.current?.push(accV);
+      }
 
       const frame = {
         t: Date.now(),
         ref: calRef.current,
         rot: { alpha: r.alpha, beta: r.beta, gamma: r.gamma },
+        q: qRef2.current,
         rate: { x: wx, y: wy, z: wz }, w,
         acc: d.acceleration || { x: 0, y: 0, z: 0 },
       };
@@ -239,14 +259,23 @@ export default function App() {
     tick();
     setCalibrating(true);
     calBuf.current = [];
+    accBuf.current = [];
     setTimeout(() => {
       const buf = calBuf.current || [];
-      calBuf.current = null;
+      const accs = accBuf.current || [];
+      calBuf.current = null; accBuf.current = null;
       setCalibrating(false);
       if (buf.length < 5) { wrong();
         setAlert({ title: 'No motion data', detail: 'The phone sent nothing while measuring. Check that motion access is allowed.' });
         return; }
       const avg = (k) => buf.reduce((s, x) => s + (x[k] ?? 0), 0) / buf.length;
+      // The rest pose IS the zero: the integrated rotation restarts at identity, and
+      // the gravity direction measured here is what the filter corrects back to.
+      qRef2.current = [1, 0, 0, 0];
+      lastT.current = 0;
+      gRest.current = accs.length
+        ? Q.unit(accs.reduce((s, v) => [s[0]+v[0], s[1]+v[1], s[2]+v[2]], [0, 0, 0]))
+        : null;
       const ref = { a: avg('a'), b: avg('b'), g: avg('g') };
       calRef.current = ref;
       setCal(ref);

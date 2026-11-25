@@ -61,8 +61,27 @@ const toCourt = (v, hand, out) => hand === 'left'
 export function attitude(rot, refQ, hand = 'right',
                          shaft = new THREE.Vector3(), normal = new THREE.Vector3()) {
   const q = quatFrom(rot);
-  const rel = refQ ? refQ.clone().invert().multiply(q) : q;
+  return fromRelative(refQ ? refQ.clone().invert().multiply(q) : q, hand, shaft, normal);
+}
 
+/**
+ * The phone's own integrated rotation, as [w, x, y, z], already relative to the
+ * player's rest pose.
+ *
+ * This is the path that is used when a phone is connected. The Euler path above is
+ * kept for the keyboard fallback and for tests, but it cannot be trusted overhead:
+ * the platform's ZXY order is degenerate when the middle angle reaches ninety
+ * degrees, which for this grip is exactly the position an overhead shot is played
+ * from. The phone therefore integrates its gyroscope from the rest pose and sends
+ * the result, so nothing has to be reconstructed from angles at all.
+ */
+export function attitudeFromQuat(q, hand = 'right',
+                                 shaft = new THREE.Vector3(), normal = new THREE.Vector3()) {
+  const rel = new THREE.Quaternion(q[1], q[2], q[3], q[0]);   // three.js is xyzw
+  return fromRelative(rel, hand, shaft, normal);
+}
+
+function fromRelative(rel, hand, shaft, normal) {
   toCourt(new THREE.Vector3(0, 1, 0).applyQuaternion(rel), hand, shaft).normalize();
   toCourt(new THREE.Vector3(0, 0, 1).applyQuaternion(rel), hand, normal).normalize();
 
@@ -89,8 +108,12 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
     normal: new THREE.Vector3(-1, 0, 0),    // racket face normal, court axes
   };
 
-  const readAttitude = (rot) => {
-    const a = attitude(rot, refQ, hand, state.shaft, state.normal);
+  const readAttitude = (m) => {
+    // Prefer the phone's own integrated rotation. Fall back to the Euler angles
+    // only for an older phone build that does not send one.
+    const a = Array.isArray(m.q) && m.q.length === 4
+      ? attitudeFromQuat(m.q, hand, state.shaft, state.normal)
+      : attitude(m.rot || {}, refQ, hand, state.shaft, state.normal);
     state.pitchDeg = a.pitchDeg;
     state.yawDeg = a.yawDeg;
   };
@@ -115,7 +138,7 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
       if (m.type === 'feed')        { onFeed?.(); return; }
       if (m.type === 'frame' || m.type === 'swing') {
         if (m.ref && !refQ) setRef(m.ref);       // phone re-sends its reference
-        readAttitude(m.rot || {});
+        readAttitude(m);
         state.w = m.w ?? 0;
         state.lastFrame = performance.now();
         online = true;

@@ -137,14 +137,27 @@ there was no way to see it approach; and the phone can only report a swing once 
 slows, so the shuttle was sampled a few hundred milliseconds late. Added a partial head
 turn and a floor shadow, and made the swing carry the age of its own peak frame.
 
+**The racket would not go overhead** (`GIMBALFIX`). Raising the phone above the head
+left the racket below it. The platform reports attitude as `ZXY` Euler angles, and that
+order is degenerate when the middle angle reaches 90°; for this grip, raising the arm
+drives it to exactly that point, so the angles stopped describing the phone precisely
+where the overhead shots are. Replaced with a complementary filter in `racket-app/quat.js`:
+the gyroscope is integrated from the moment of calibration, so the rotation is relative
+to the player's own rest pose and never touches a compass or a world frame, and it is
+corrected towards gravity by comparing the accelerometer direction with its own value
+at rest. Comparing a measurement with its earlier self means no assumption is needed
+about how the platform signs its accelerometer. The correction is weighted down when
+total acceleration is far from 9.81 m/s², because during a swing the accelerometer is
+measuring the swing. Checked by five tests: the racket reaches exactly vertical at 90°,
+keeps going to 120° behind the head instead of flipping, climbs monotonically through
+the old failure point, and 7°/s of injected gyro bias over 20 seconds drifts 137° with
+the correction off and 3.7° with it on.
+
 ### Known and unfixed
 
-Raising the phone fully overhead does not take the racket overhead. The grip puts the
-phone at a roll of about -90°, which sits on the boundary of the `ZXY` Euler
-decomposition the platform reports, and raising the arm drives the middle angle towards
-the gimbal-lock point. The fix is to stop reconstructing orientation from Euler angles
-and integrate the gyroscope from the calibrated rest pose with a complementary filter,
-correcting slowly towards gravity. Not done at submission.
+Heading drift about the vertical axis is not corrected, because gravity gives no
+reference for it. It is slow and a recalibration clears it, but a long session will
+gradually rotate the racket's yaw. Head and foot tracking remain simulated.
 
 ---
 
