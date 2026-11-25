@@ -8,7 +8,8 @@
 
 const SWING_FULL = 16;     // rad/s treated as a full-power swing
 
-export function createRacket({ onSwing, onStatus, onHand, onCalibrated } = {}) {
+export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
+                               onSession } = {}) {
   let ws = null;
   let online = false;
   let ref = null;                 // the player's rest pose, from calibration
@@ -59,6 +60,8 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated } = {}) {
                                       onHand?.(hand); return; }
       if (m.type === 'calibration') { ref = m.ref || null; onCalibrated?.(!!ref); return; }
       if (m.type === 'racket-offline') { online = false; onStatus?.('waiting'); return; }
+      // the player can start or stop the drill from the phone as well as from here
+      if (m.type === 'session')     { onSession?.(!!m.on, 'phone'); return; }
       if (m.type === 'frame' || m.type === 'swing') {
         if (m.ref && !ref) ref = m.ref;          // phone re-sends its reference
         Object.assign(state, fromRotation(m.rot || {}),
@@ -75,12 +78,23 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated } = {}) {
     };
   };
 
-  const buzz = (ms = 25) => {
-    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'buzz', ms }));
-  };
+  const tell = (msg) => { if (ws?.readyState === 1) ws.send(JSON.stringify(msg)); };
+
+  /* ---- what the court sends back to the phone ----
+   *
+   * Each of these is a different haptic on the phone, and each one has exactly one
+   * meaning. `contact` is the only routine one: the shuttle met the strings, and the
+   * strength of the tap is the power of the shot. A whiff sends nothing, because a
+   * buzz on every miss is noise and the court already shows the miss. `alert` is the
+   * harsh one, reserved for the drill stopping, and it never travels alone: the court
+   * shows the same words at the same moment. */
+  const contact = (power = 0.6, kind = '') => tell({ type: 'contact', power, kind });
+  const alertPhone = (title, detail) => tell({ type: 'alert', title, detail });
+  const confirmMirror = () => tell({ type: 'mirror-ok' });
+  const setSession = (on) => tell({ type: 'session', on });
 
   return {
-    connect, buzz,
+    connect, contact, alertPhone, confirmMirror, setSession,
     get online() { return online && performance.now() - state.lastFrame < 2000; },
     get state() { return state; },
     get hand() { return hand; },

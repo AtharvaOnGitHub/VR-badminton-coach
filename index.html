@@ -24,8 +24,8 @@
   <strong>Racket:</strong> your phone, running the companion app in <em>Expo Go</em> — it sends
   the racket's attitude and your swing speed over your network. <strong>Feet:</strong>
   <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, standing in for physically stepping in the
-  headset. With no phone connected, <kbd>Space</kbd> plays a default swing so the court is
-  still usable.
+  headset. No phone to hand? Choose <em>Play without a phone</em> and <kbd>Space</kbd> swings
+  for you.
 </div>
 
 <main>
@@ -47,12 +47,62 @@
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp; <kbd>Space</kbd> swing
       &nbsp; <kbd>P</kbd> freeze &nbsp; <kbd>Enter</kbd> next
     </div>
+
+    <!-- Harsh haptics never travel alone. Whenever the phone buzzes hard, this
+         says what is wrong and what to do about it. -->
+    <div class="alert" id="alert" hidden>
+      <div>
+        <strong id="alert-title"></strong>
+        <p id="alert-detail"></p>
+      </div>
+      <button id="alert-dismiss">Dismiss</button>
+    </div>
+
+    <!-- Nothing is fed until the player has done four things. The court does not
+         start on its own, because a drill that begins before the player is holding
+         the racket counts swings they never made. -->
+    <div class="lobby" id="lobby">
+      <div class="lobby-card">
+        <h2>Before the first shuttle</h2>
+        <p class="lobby-sub">Your phone is the racket. The court waits until it knows
+          which hand you play with, where your arm rests, and that you can see yourself
+          here.</p>
+
+        <ol class="gates">
+          <li id="g-hand"><i></i><div><strong>Choose your hand</strong>
+            <em>on the phone</em></div></li>
+          <li id="g-cal"><i></i><div><strong>Set your rest position</strong>
+            <em>arm relaxed, phone just below the hip</em></div></li>
+          <li id="g-mirror"><i></i><div><strong>See yourself on the court</strong>
+            <em>move the phone and watch the racket below</em></div></li>
+          <li id="g-start"><i></i><div><strong>Start the drill</strong>
+            <em>here or on the phone</em></div></li>
+        </ol>
+
+        <div class="mirror" id="mirror">
+          <div class="mrow"><span>Phone</span><b id="m-link">not connected</b></div>
+          <div class="mrow"><span>Hand</span><b id="m-hand">—</b></div>
+          <div class="mrow"><span>Face angle</span><b id="m-pitch">—</b></div>
+          <div class="mrow"><span>Swing speed</span><b id="m-w">—</b></div>
+          <div class="mbar"><span id="m-fill"></span></div>
+          <div class="macts">
+            <button id="btn-mirror" disabled>I can see my racket move</button>
+            <button id="btn-relink" class="ghost">Reconnect</button>
+          </div>
+        </div>
+
+        <div class="lobby-acts">
+          <button id="btn-start" class="primary" disabled>Start the drill</button>
+          <button id="btn-keyboard">Play without a phone</button>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="bar">
-    <button id="btn-feed" class="primary">Feed a shuttle</button>
-    <button id="btn-swing">Swing</button>
-    <button id="btn-freeze">Freeze the shuttle</button>
-    <button id="btn-racket">Connect my phone</button>
+    <button id="btn-feed" class="primary" disabled>Feed a shuttle</button>
+    <button id="btn-swing" disabled>Swing</button>
+    <button id="btn-freeze" disabled>Freeze the shuttle</button>
+    <button id="btn-stop" disabled>End the drill</button>
     <label class="switch"><input type="checkbox" id="view-side"> Side view</label>
     <span class="grow"></span>
     <span class="quiet" id="block-line">Block 1 · 0 of 10</span>

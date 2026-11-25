@@ -144,3 +144,64 @@ td.ok{color:var(--accent);font-weight:600}
 .hud-tr3{top:76px;right:16px;padding:4px 10px;border-radius:14px;font-size:11px}
 .hud-tr4{top:104px;right:16px;padding:4px 10px;border-radius:14px;font-size:11px}
 .hud-tr3.live,.hud-tr4.live{background:rgba(63,208,138,.14);color:#7ff0b4;border:1px solid rgba(63,208,138,.35)}
+
+/* ---------- the lobby ----------
+   Covers the court until the player has said they are ready. It sits inside the
+   stage rather than in a modal, because what it is gating is the court itself. */
+.lobby{position:absolute;inset:0;background:rgba(10,16,22,.94);
+  display:block;padding:18px;overflow:auto}
+.lobby[hidden]{display:none}
+/* the score and the key hints belong to a drill that is running */
+.stage.lobbying .hud{display:none}
+.lobby-card{width:100%;max-width:640px;margin:0 auto;color:#eef3f7}
+.lobby-card h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.lobby-sub{margin:4px 0 14px;font-size:12.5px;line-height:1.45;color:#9fb0bf;max-width:62ch}
+.gates{list-style:none;margin:0 0 14px;padding:0;
+  display:grid;grid-template-columns:1fr 1fr;gap:7px 18px}
+.gates li{display:flex;align-items:baseline;gap:9px;font-size:13px}
+.gates li i{flex:0 0 15px;height:15px;align-self:flex-start;margin-top:3px;border-radius:50%;
+  border:1.5px solid #3a4a58;background:#16212b;position:relative}
+.gates li.done i{background:var(--accent);border-color:#3fd08a}
+.gates li.done i::after{content:"";position:absolute;left:4px;top:3px;width:4px;height:7px;
+  border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(42deg)}
+.gates li strong{font-weight:650;display:block;line-height:1.3}
+.gates li em{font-style:normal;font-size:11.5px;color:#8b96a2;display:block;line-height:1.3}
+.gates li.done strong{color:#7ff0b4}
+
+.mirror{background:#121c25;border:1px solid #223040;border-radius:11px;padding:12px 14px;
+  display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.mrow{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12.5px;color:#8b96a2;padding:2px 0}
+.mrow b{color:#dce6ef;font-weight:600;font-variant-numeric:tabular-nums}
+.mrow b.ok{color:#7ff0b4}
+.mbar{grid-column:1/-1;height:6px;background:#1d2a36;border-radius:3px;overflow:hidden;
+  margin:9px 0 11px}
+.mbar span{display:block;height:6px;width:0;background:#3fd08a;transition:width .1s linear}
+.macts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.mirror button{background:#1b2836;border:1px solid #2b3c4c;color:#dce6ef;
+  padding:8px 14px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
+.mirror button:hover:not(:disabled){background:#22323f}
+.mirror button:disabled{opacity:.42;cursor:default}
+.mirror button.ghost{background:none}
+
+.lobby-acts{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.lobby-acts button{font:inherit;font-size:14px;padding:10px 20px;border-radius:8px;
+  cursor:pointer;border:1px solid #2b3c4c;background:#1b2836;color:#dce6ef}
+.lobby-acts button.primary{background:var(--accent);border-color:var(--accent);color:#fff;
+  font-weight:600}
+.lobby-acts button:disabled{opacity:.42;cursor:default}
+
+/* ---------- alerts ----------
+   The phone's harsh haptic is never on its own. This appears in the same moment
+   and names the problem, so the buzz means something the player can act on. */
+.alert{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:3;
+  width:min(520px,calc(100% - 32px));display:flex;gap:14px;align-items:flex-start;
+  background:#3a1b1e;border:1px solid #6b2f34;border-radius:10px;padding:12px 14px;
+  color:#ffd9d9;box-shadow:0 8px 26px rgba(0,0,0,.45)}
+.alert[hidden]{display:none}
+.alert strong{display:block;font-size:14px;color:#ffb0b0}
+.alert p{margin:3px 0 0;font-size:12.5px;line-height:1.5;color:#e0b8b8}
+.alert button{margin-left:auto;flex:0 0 auto;background:none;border:1px solid #6b2f34;
+  color:#ffd9d9;padding:6px 12px;border-radius:6px;font:inherit;font-size:12.5px;
+  cursor:pointer}
+.bar button:disabled{opacity:.45;cursor:default}

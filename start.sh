@@ -50,6 +50,9 @@ BANNER
 python3 -m http.server 4178 >/dev/null 2>&1 &
 PIDS+=($!)
 
+# give the static server a moment, then put the court on screen
+( sleep 1; open "http://localhost:4178" ) >/dev/null 2>&1 &
+
 node relay/server.mjs &
 PIDS+=($!)
 

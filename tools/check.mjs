@@ -29,6 +29,43 @@ const run = async () => {
   await sleep(400);
   await page.evaluate(() => window.shadow.sim.useFixedFeed(true));
 
+  console.log('\n0. NOTHING RUNS UNTIL THE PLAYER STARTS');
+  const before = await page.evaluate(() => ({
+    lobby: !document.querySelector('#lobby').hidden,
+    session: window.shadow.session,
+    reps: window.shadow.sim.reps.length,
+    feedDisabled: document.querySelector('#btn-feed').disabled,
+    startDisabled: document.querySelector('#btn-start').disabled,
+  }));
+  console.log(`  on load: lobby ${before.lobby ? 'shown' : 'hidden'}, session ${before.session}, `
+    + `${before.reps} reps, feed ${before.feedDisabled ? 'disabled' : 'enabled'}, `
+    + `start ${before.startDisabled ? 'disabled' : 'enabled'}`);
+  ok('the court waits in the lobby instead of feeding', before.lobby && !before.session);
+  ok('start is refused until the gates are met', before.startDisabled);
+  ok('the drill controls are dead before the session', before.feedDisabled);
+
+  await sleep(1800);
+  const idle = await page.evaluate(() => window.shadow.sim.reps.length);
+  ok('no shuttle is fed at a player who has not started', idle === 0, `${idle} reps`);
+
+  const after = await page.evaluate(async () => {
+    window.shadow.startSession();
+    await new Promise(r => setTimeout(r, 120));
+    return { lobby: !document.querySelector('#lobby').hidden,
+             session: window.shadow.session,
+             state: window.shadow.sim.state,
+             feedDisabled: document.querySelector('#btn-feed').disabled };
+  });
+  console.log(`  after start: lobby ${after.lobby ? 'shown' : 'hidden'}, session ${after.session}, `
+    + `rep state "${after.state}"`);
+  ok('starting clears the lobby and feeds the first shuttle',
+     after.session && !after.lobby && after.state === 'incoming' && !after.feedDisabled);
+
+  await page.evaluate(() => { window.shadow.stopSession(); window.shadow.sim.reps.length = 0; });
+  const stopped = await page.evaluate(() => ({
+    lobby: !document.querySelector('#lobby').hidden, session: window.shadow.session }));
+  ok('stopping puts the lobby back', stopped.lobby && !stopped.session);
+
   console.log('\n1. SWINGING AT NOTHING IS A WHIFF');
   const early = await rep(page, { delay: 250 });
   const late  = await rep(page, { delay: 1350, dz: 2 });   // backed off, swung early

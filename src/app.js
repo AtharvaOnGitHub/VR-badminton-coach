@@ -11,19 +11,48 @@ const el = (t, c, h) => { const n = document.createElement(t);
 
 const ps = newPolicyState();
 
-// The phone. If none is connected the court still plays, with a default swing.
+/* ---------- session gate ----------
+ *
+ * The drill does not run until four things are true. Three of them are the player
+ * telling the system something it cannot work out for itself: which hand they play
+ * with, where their arm rests, and whether what they see on the court is actually
+ * them. The fourth is the start itself, which is the player's own act rather than
+ * the system's. Before that, swings are not counted, because a counter that starts
+ * when the app opens records picking the phone up as a stroke.
+ *
+ * Keyboard mode skips the three phone gates and says so, so the court is still
+ * usable with no hardware. */
+const gate = { hand: false, cal: false, mirror: false, live: false };
+let session = false, keyboardOnly = false;
+
 const racket = createRacket({
-  onSwing: (r) => sim.swing(r),
-  onHand: (h) => { $('#hand-chip').textContent = h + ' handed'; $('#hand-chip').hidden = false; },
-  onCalibrated: (ok) => { const c = $('#cal-chip'); c.hidden = !ok;
-                          c.textContent = 'rest pose set'; },
+  onSwing: (r) => { if (session) sim.swing(r); },
+  onHand: (h) => {
+    gate.hand = true;
+    $('#hand-chip').textContent = h + ' handed'; $('#hand-chip').hidden = false;
+    paintLobby();
+  },
+  onCalibrated: (ok) => {
+    gate.cal = ok;
+    const c = $('#cal-chip'); c.hidden = !ok; c.textContent = 'rest pose set';
+    paintLobby();
+  },
+  onSession: (on) => { on ? startSession('phone') : stopSession(null, 'phone'); },
   onStatus: (s) => {
     const chip = $('#racket-chip');
     chip.textContent = s === 'racket connected' ? 'racket live' : s;
     chip.className = 'hud hud-tr2 ' + (s === 'racket connected' ? 'live' : 'cold');
+    if (s !== 'racket connected') {
+      gate.live = gate.mirror = false;
+      if (session) stopSession({ title: 'The racket went quiet',
+        detail: 'No frames are arriving from your phone, so a swing cannot be read. '
+              + 'Reconnect on the phone, then start again.' });
+    }
+    paintLobby();
   },
 });
 let blockIndex = 0, shared = false, reviewed = false, notice = null;
+let nextTimer = null;
 const dismissedThisBlock = new Set();
 
 const sim = createSim($('#c'), {
@@ -34,6 +63,10 @@ const sim = createSim($('#c'), {
     $('#in-count').textContent = reps.filter(r => r.outcome === 'in').length;
     $('#block-line').textContent =
       `Block ${Math.floor(reps.length / BLOCK) + 1} · ${reps.length % BLOCK || (reps.length ? BLOCK : 0)} of ${BLOCK}`;
+    // The one routine haptic: the shuttle met the strings, and how hard.
+    // A whiff deliberately sends nothing. The court below says what happened.
+    if (rep.swung && rep.outcome !== 'whiff') racket.contact(rep.power ?? 0.6, rep.kind);
+
     const v = $('#verdict');
     if (rep.outcome === 'whiff') {
       v.className = 'hud hud-bc v-whiff';
@@ -59,7 +92,15 @@ const sim = createSim($('#c'), {
       `Three past the target in a row. <strong>Press P</strong> on the next one to stop the
        shuttle in the air and look at where you are. Or carry on.`;
   },
-  onState: ({ state }) => { if (state === 'incoming') $('#verdict').hidden = true; },
+  onState: ({ state }) => {
+    if (state === 'incoming') $('#verdict').hidden = true;
+    // A drill feeds itself. Standing still to press a key between reps is not
+    // badminton, so the next shuttle comes on its own while the session is running.
+    if (state === 'done' && session) {
+      clearTimeout(nextTimer);
+      nextTimer = setTimeout(() => { if (session) feedNext(); }, 1500);
+    }
+  },
 });
 
 function endBlock(reps) {
@@ -70,15 +111,94 @@ function endBlock(reps) {
   dismissedThisBlock.clear();
 }
 
+/* ---------- the lobby, and starting ---------- */
+const ready = () => keyboardOnly || (gate.hand && gate.cal && gate.mirror && gate.live);
+
+function paintLobby() {
+  const set = (id, on) => $(id).classList.toggle('done', !!on);
+  set('#g-hand', keyboardOnly || gate.hand);
+  set('#g-cal', keyboardOnly || gate.cal);
+  set('#g-mirror', keyboardOnly || gate.mirror);
+  set('#g-start', session);
+  document.querySelector('.stage').classList.toggle('lobbying', !session);
+  $('#btn-start').disabled = !ready();
+  $('#btn-start').textContent = keyboardOnly ? 'Start without a phone' : 'Start the drill';
+  $('#btn-mirror').disabled = !gate.live || gate.mirror;
+  $('#btn-mirror').textContent = gate.mirror ? 'Confirmed' : 'I can see my racket move';
+}
+
+function startSession(from = 'court') {
+  if (session || !ready()) return;
+  session = true;
+  $('#lobby').hidden = true;
+  for (const b of ['#btn-feed', '#btn-swing', '#btn-freeze', '#btn-stop'])
+    $(b).disabled = false;
+  if (from !== 'phone') racket.setSession(true);
+  showAlert(null);
+  paintLobby();
+  feedNext();
+}
+
+/** `problem` is null for an ordinary end and an object when something went wrong.
+ *  A problem is the only thing that reaches the phone as a harsh haptic, and it is
+ *  shown here in the same moment, because a buzz with no explanation is an alarm the
+ *  player cannot act on. */
+function stopSession(problem = null, from = 'court') {
+  clearTimeout(nextTimer);
+  if (!session) { if (problem) showAlert(problem); return; }
+  session = false;
+  for (const b of ['#btn-feed', '#btn-swing', '#btn-freeze', '#btn-stop'])
+    $(b).disabled = true;
+  $('#lobby').hidden = false;
+  if (from !== 'phone') racket.setSession(false);
+  if (problem) { showAlert(problem); racket.alertPhone(problem.title, problem.detail); }
+  paintLobby();
+}
+
+function showAlert(a) {
+  const box = $('#alert');
+  box.hidden = !a;
+  if (a) { $('#alert-title').textContent = a.title; $('#alert-detail').textContent = a.detail; }
+}
+$('#alert-dismiss').addEventListener('click', () => showAlert(null));
+
+$('#btn-start').addEventListener('click', () => startSession('court'));
+$('#btn-stop').addEventListener('click', () => stopSession(null, 'court'));
+$('#btn-mirror').addEventListener('click', () => {
+  gate.mirror = true; racket.confirmMirror(); paintLobby();
+});
+$('#btn-relink').addEventListener('click', () => racket.connect());
+$('#btn-keyboard').addEventListener('click', () => {
+  keyboardOnly = true;
+  $('#btn-keyboard').textContent = 'Keyboard mode on';
+  $('#btn-keyboard').disabled = true;
+  paintLobby();
+});
+
+/* The mirror. Its only job is to let the player confirm that the thing moving on
+ * screen is them, which no amount of connection status can establish. */
+setInterval(() => {
+  const on = racket.online;
+  if (on !== gate.live) { gate.live = on; if (!on) gate.mirror = false; paintLobby(); }
+  $('#m-link').textContent = on ? 'live' : 'not connected';
+  $('#m-link').className = on ? 'ok' : '';
+  $('#m-hand').textContent = gate.hand ? racket.hand + ' handed' : 'not chosen';
+  const st = racket.state;
+  $('#m-pitch').textContent = on ? st.pitchDeg.toFixed(0) + '°' : '—';
+  $('#m-w').textContent = on ? st.w.toFixed(1) + ' rad/s' : '—';
+  $('#m-fill').style.width = Math.min(100, (on ? st.w : 0) / 20 * 100) + '%';
+}, 120);
+
 /* ---------- input ---------- */
 const feedNext = () => { sim.startRep(); $('#verdict').hidden = true; $('#offer').hidden = true; };
-$('#btn-feed').addEventListener('click', feedNext);
-$('#btn-swing').addEventListener('click', () => sim.swing(racket.fallbackSwing()));
-$('#btn-freeze').addEventListener('click', () => sim.togglePause());
+$('#btn-feed').addEventListener('click', () => { if (session) feedNext(); });
+$('#btn-swing').addEventListener('click', () => { if (session) sim.swing(racket.fallbackSwing()); });
+$('#btn-freeze').addEventListener('click', () => { if (session) sim.togglePause(); });
 $('#view-side').addEventListener('change', e => sim.setView(e.target.checked ? 'side' : 'fp'));
 
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
+  if (!session) return;
   if (e.code === 'Space') { e.preventDefault();
     sim.swing(racket.online ? null : racket.fallbackSwing()); }
   if (e.code === 'ArrowLeft'  || e.code === 'KeyA') { e.preventDefault(); sim.step(-1, 0); }
@@ -262,12 +382,15 @@ function renderCoach() {
       <td>${r.swung ? r.pitchDeg.toFixed(0) + '°' : '—'}</td></tr>`).join('');
 }
 
-// exposed so the behaviour can be inspected from the console and by tools/shots.mjs
-window.shadow = { sim, ps, observe };
+// exposed so the behaviour can be inspected from the console and by tools/shots.mjs.
+// startSession is here so the behaviour checks can arm the drill without a phone.
+window.shadow = { sim, ps, observe,
+                  startSession: () => { keyboardOnly = true; paintLobby(); startSession('court'); },
+                  stopSession: () => stopSession(null, 'court'),
+                  get session() { return session; } };
 
-$('#btn-racket').addEventListener('click', () => racket.connect());
-
-/* boot */
+/* boot. The court shows the lobby and waits; it does not feed a shuttle at a player
+   who has not said they are ready. */
 racket.connect();
 syncRemap();
-feedNext();
+paintLobby();
