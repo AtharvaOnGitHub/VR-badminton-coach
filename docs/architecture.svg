@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 812" width="1300" height="812" font-family="Helvetica,Arial,sans-serif">
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a5058"/></marker>
+  <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/></marker>
+</defs>
+<style>
+  .band{fill:#f4f6f8}.bandlab{font-size:12.5px;fill:#5b636d;font-weight:bold;letter-spacing:.07em}
+  .clk{font-size:11px;fill:#8b94a0}
+  .box{fill:#fff;stroke:#2f3640;stroke-width:1.6;rx:7}
+  .sim{fill:#fff;stroke:#8a5a00;stroke-width:1.6;stroke-dasharray:6 4;rx:7}
+  .plan{fill:#fafafa;stroke:#9aa3ad;stroke-width:1.4;stroke-dasharray:2 4;rx:7}
+  .core{fill:#eaf5ef;stroke:#1f6f4a;stroke-width:2.2;rx:7}
+  .t{font-size:13px;fill:#16191d;font-weight:600}
+  .s{font-size:11px;fill:#6b7280}
+  .lk{font-size:10px;fill:#1f6f4a;font-weight:bold}
+  .ln{stroke:#4a5058;stroke-width:1.6;fill:none;marker-end:url(#a)}
+  .lng{stroke:#9aa3ad;stroke-width:1.4;fill:none;stroke-dasharray:3 3;marker-end:url(#ag)}
+  .ctr{font-size:10.5px;fill:#2c5d8f;font-style:italic}
+</style>
+
+<text x="0" y="15" class="t" font-size="15">Shadow — architecture</text>
+<text x="0" y="33" class="s">Every box runs locally. The bands are the three clocks; nothing crosses from a slow band into a fast one.</text>
+<!-- legend, top right, clear of everything -->
+<rect class="box" x="742" y="4" width="16" height="13"/><text x="764" y="15" class="s">implemented</text>
+<rect class="sim" x="872" y="4" width="16" height="13"/><text x="894" y="15" class="s">simulated placeholder</text>
+<rect class="plan" x="1046" y="4" width="16" height="13"/><text x="1068" y="15" class="s">planned, not built</text>
+
+<!-- FRAME -->
+<rect class="band" x="0" y="44" width="1300" height="136" rx="8"/>
+<text x="16" y="70" class="bandlab">FRAME CLOCK</text><text x="16" y="88" class="clk">~11 ms · 90 Hz</text><text x="16" y="104" class="clk">always local</text>
+<rect class="sim" x="228" y="60" width="186" height="56"/><text x="242" y="83" class="t">Headset pose</text><text x="242" y="101" class="s">6DoF</text>
+<rect class="sim" x="228" y="122" width="186" height="42"/><text x="242" y="148" class="t">Controller pose + IMU</text>
+<rect class="box" x="490" y="84" width="196" height="58"/><text x="504" y="107" class="t">Render</text><text x="504" y="126" class="s">shows nothing during practice</text>
+<text x="716" y="106" class="ctr">no feedback path leaves here —</text><text x="716" y="122" class="ctr">the quiet is architectural, not a gap</text>
+<line class="ln" x1="414" y1="100" x2="484" y2="108"/>
+
+<!-- INTERACTION -->
+<rect class="band" x="0" y="192" width="1300" height="118" rx="8"/>
+<text x="16" y="218" class="bandlab">INTERACTION CLOCK</text><text x="16" y="236" class="clk">~100 ms · local</text>
+<rect class="box" x="228" y="208" width="186" height="58"/><text x="242" y="231" class="t">Swing segmentation</text><text x="242" y="250" class="s">one swing → one record</text>
+<rect class="box" x="490" y="208" width="196" height="58"/><text x="504" y="231" class="t">Tracking-quality gate</text><text x="504" y="250" class="s">q &lt; 0.6 → drop, never guess</text>
+<rect class="box" x="762" y="208" width="196" height="58"/><text x="776" y="231" class="t">Occlusion signal</text><text x="776" y="250" class="s">"swing 42 not scored"</text>
+<line class="ln" x1="414" y1="237" x2="484" y2="237"/><line class="ln" x1="686" y1="237" x2="756" y2="237"/>
+<line class="ln" x1="321" y1="164" x2="321" y2="202"/>
+
+<!-- BLOCK -->
+<rect class="band" x="0" y="322" width="1300" height="210" rx="8"/>
+<text x="16" y="348" class="bandlab">BLOCK CLOCK</text><text x="16" y="366" class="clk">seconds · local</text><text x="16" y="382" class="clk">end of a 10-swing block</text>
+<rect class="box" x="228" y="348" width="186" height="68"/><text x="242" y="371" class="t">Descriptive stats</text><text x="242" y="389" class="s">vs player's own first 12</text><text x="242" y="406" class="s">simple by design</text>
+<rect class="core" x="490" y="340" width="272" height="116"/>
+<text x="506" y="364" class="t" fill="#1f6f4a">POLICY ENGINE</text>
+<text x="506" y="384" class="s">hysteresis: enter .60 × 2 blocks</text>
+<text x="506" y="400" class="s">leave .35 × 3 blocks</text>
+<text x="506" y="416" class="s">dormant→arming→active→releasing</text>
+<text x="506" y="434" class="s">→muted</text>
+<text x="506" y="450" class="lk">the implemented contribution</text>
+<rect class="box" x="846" y="340" width="196" height="52"/><text x="860" y="362" class="t">Raise at block end</text><text x="860" y="380" class="s">one line, ignorable</text>
+<text x="1056" y="366" class="ctr">advise</text>
+<rect class="box" x="846" y="404" width="196" height="52"/><text x="860" y="426" class="t">Stay silent</text><text x="860" y="444" class="s">a defined state, not a failure</text>
+<rect class="box" x="490" y="472" width="272" height="46"/><text x="504" y="494" class="t">Trace log</text><text x="504" y="510" class="s">from return values, not a summary</text>
+<line class="ln" x1="414" y1="382" x2="484" y2="386"/>
+<line class="ln" x1="762" y1="366" x2="840" y2="366"/><line class="ln" x1="762" y1="424" x2="840" y2="428"/>
+<line class="ln" x1="626" y1="456" x2="626" y2="466"/>
+<line class="ln" x1="588" y1="266" x2="588" y2="334"/>
+
+<!-- PULLED -->
+<rect class="band" x="0" y="544" width="1300" height="212" rx="8"/>
+<text x="16" y="570" class="bandlab">PULLED BY</text><text x="16" y="588" class="bandlab">THE PLAYER</text><text x="16" y="608" class="clk">no deadline</text><text x="16" y="624" class="clk">never gated by the policy</text>
+<rect class="core" x="228" y="564" width="200" height="88"/>
+<text x="242" y="588" class="t" fill="#1f6f4a">Review surface</text><text x="242" y="606" class="s">the observation, plus the</text><text x="242" y="622" class="s">swings it came from</text><text x="242" y="642" class="lk">implemented</text>
+<text x="228" y="674" class="ctr">advise — the player pulled it</text>
+
+<rect class="core" x="490" y="564" width="272" height="88"/>
+<text x="506" y="588" class="t" fill="#1f6f4a">Override ladder</text>
+<text x="506" y="606" class="s">1st dismiss → gone this block, silently</text>
+<text x="506" y="622" class="s">2nd dismiss → muted for session, said</text>
+<text x="506" y="638" class="s">global → "I'll ask" · never self-reverts</text>
+<text x="490" y="674" class="ctr">the player's reply to the system</text>
+
+<rect class="box" x="846" y="564" width="196" height="88"/>
+<text x="860" y="588" class="t">Coach surface</text><text x="860" y="606" class="s">confidence, z-scores,</text><text x="860" y="622" class="s">dropped swings, mutes</text><text x="860" y="642" class="lk">implemented</text>
+<text x="846" y="674" class="ctr">execute with approval — leaves the</text><text x="846" y="690" class="ctr">headset and cannot be undone</text>
+
+<rect class="plan" x="1086" y="564" width="196" height="88"/>
+<text x="1100" y="588" class="t" fill="#6b7280">LLM phrasing</text><text x="1100" y="606" class="s">scored observation</text><text x="1100" y="622" class="s">→ sentence; beside the</text><text x="1100" y="638" class="s">loop, remote · planned</text>
+<text x="1086" y="674" class="ctr" fill="#9aa3ad">if late or never returns: keep the</text>
+<text x="1086" y="690" class="ctr" fill="#9aa3ad">template sentence and show its age</text>
+
+<line class="ln" x1="428" y1="604" x2="484" y2="604"/><line class="ln" x1="762" y1="604" x2="840" y2="604"/>
+<line class="lng" x1="1042" y1="604" x2="1080" y2="604"/>
+<line class="ln" x1="626" y1="518" x2="626" y2="558"/>
+<line class="ln" x1="321" y1="416" x2="321" y2="558"/>
+
+<text x="0" y="784" class="s" font-weight="bold">No remote call exists in the built system, so the "slowest call never returns" failure has nothing to handle today. The one planned remote component is scoped so that its absence degrades to the template sentence.</text>
+</svg>
