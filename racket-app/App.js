@@ -40,6 +40,7 @@ export default function App() {
   const sub = useRef(null);
   const calBuf = useRef(null);
   const latest = useRef(null);
+  const calRef = useRef(null);   // the listener mounts once, so it cannot read `cal` from state
 
   const connect = () => {
     try { ws.current?.close(); } catch {}
@@ -75,7 +76,7 @@ export default function App() {
 
       const frame = {
         t: Date.now(),
-        ref: cal,
+        ref: calRef.current,
         rot: { alpha: r.alpha, beta: r.beta, gamma: r.gamma },
         rate: { x: wx, y: wy, z: wz }, w,
         acc: d.acceleration || { x: 0, y: 0, z: 0 },
@@ -116,6 +117,7 @@ export default function App() {
       if (buf.length < 5) return;
       const avg = (k) => buf.reduce((s, x) => s + (x[k] ?? 0), 0) / buf.length;
       const ref = { a: avg('a'), b: avg('b'), g: avg('g') };
+      calRef.current = ref;
       setCal(ref);
       Vibration.vibrate([0, 30, 60, 30]);
       const sock = ws.current;

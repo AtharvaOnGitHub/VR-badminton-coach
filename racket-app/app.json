@@ -12,8 +12,12 @@
       "package": "com.shadow.racket"
     },
     "plugins": [
-      "expo-asset",
-      "expo-font"
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Shadow reads the phone's motion so the phone can act as the racket. Nothing leaves your local network."
+        }
+      ]
     ]
   }
 }

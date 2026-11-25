@@ -136,22 +136,34 @@ and types `10.114.198.229` into the app.
 
 ---
 
-## 5. Current blocker
+## 5. The phone, and the Expo blocker (RESOLVED 25 Nov, 12:45)
 
-**Expo Go version mismatch.** The installed Expo Go on the phone does not match
-SDK 52, which `racket-app/package.json` pins. Options, in order of preference:
+**Expo Go only ever supports one SDK: the current one.** On 25 Nov 2026 that is
+**SDK 58**. The app was pinned to SDK 52, six releases behind, so Expo Go refused the
+bundle. Installing an old Expo Go is not available on iOS, so the only fix was to
+upgrade the app.
 
-1. Upgrade `racket-app` to the SDK the installed Expo Go supports (`npx expo install
-   --fix` after changing the `expo` version), or
-2. Install an older Expo Go build matching SDK 52, or
-3. Use `npx expo start --tunnel` if the issue turns out to be reachability rather
-   than SDK.
+Done, and verified by bundling (`npx expo export --platform ios`: 614 modules, clean)
+and `npx expo-doctor` (20/20). Current pins:
 
-Current pins: `expo ~52.0.0`, `react-native 0.76.9`, `react 18.3.1`,
-`expo-sensors ~14.0.1`, `expo-keep-awake ~14.0.1`, plus `expo-asset`,
-`expo-constants`, `expo-file-system`, `expo-font` which Metro demanded.
+```
+expo ~58.0.26   react 19.3.0   react-native 0.88.1
+expo-sensors ~58.0.5   expo-keep-awake ~58.0.4
+```
 
-**Also unverified because it needs a real phone and a real arm:**
+Three things changed besides the version numbers:
+
+1. **`expo/AppEntry.js` was removed after SDK 52.** There is now an explicit
+   `racket-app/index.js` calling `registerRootComponent(App)`, and
+   `package.json` has `"main": "index.js"`. Do not put AppEntry back.
+2. **`expo-asset`, `expo-constants`, `expo-file-system`, `expo-font` are gone.** They
+   were only needed to satisfy the old AppEntry path. The `expo-asset` and `expo-font`
+   plugins came out of `app.json` with them.
+3. **`expo-sensors` is declared as a config plugin** so iOS gets an
+   `NSMotionUsageDescription` string. Expo Go has its own, so this matters only for a
+   native build, but the string is also the honest disclosure that L23 asks for.
+
+**Still unverified because it needs a real phone and a real arm:**
 - Is the face-angle sign right? Does tilting forward close the face?
 - Is 9 rad/s the right "deliberate swing" threshold?
 - Is the 0.8 gain on face angle too twitchy or too dead?
@@ -160,7 +172,7 @@ All three are one-line changes in `racket-app/App.js` and `src/racket.js`.
 
 **Network risk:** 10.114.x.x is university Wi-Fi, which often isolates clients so the
 phone cannot reach the laptop. Fallback is the phone's hotspot with the laptop joined
-to it, then re-read the IP from the relay's startup banner.
+to it, then re-run `./start.sh`, which re-reads the IP.
 
 ---
 
@@ -264,13 +276,12 @@ calibration average over 900 ms, DeviceMotion at 60 Hz.
 - Phone relay end to end, including handedness and calibration chips
 
 **Left to do**
-1. Fix the Expo Go SDK mismatch, then a real-phone test
+1. ~~Fix the Expo Go SDK mismatch~~ done. Real-phone test still pending
 2. Tune face-angle sign, swing threshold, face gain against a real arm
 3. **Rewrite the A2 report** for the current build. The existing one is stale
 4. Rebuild `docs/architecture.svg` — it describes the old pipeline
 5. Recapture `docs/shots/*` — `tools/shots.mjs` drives UI that no longer exists
 6. Update README and AGENTS.md for the phone/racket architecture
-7. Delete `src/data.js`
 8. Re-tag `a2-submission` at the final commit
 
 **Suggested order given the deadline:** 3, 4, 5, 6 are the graded artefacts and depend
@@ -283,11 +294,14 @@ hardware is a labelled placeholder, which A2 explicitly permits.
 ## 9. Useful commands
 
 ```bash
-# everything up
+# everything up; Ctrl-C stops all three cleanly
 ./start.sh
 
-# behaviour checks (needs :4178 up)
-node tools/check.mjs
+# free the ports if something was left holding them
+./stop.sh
+
+# behaviour checks; brings up its own static server if needed
+./check.sh
 
 # extract any course PDF to text
 /Users/atharvawaghmare/miniconda3/envs/iis/bin/python -c "
