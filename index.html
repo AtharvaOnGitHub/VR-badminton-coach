@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shadow — badminton practice that waits to be asked</title>
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">◗</span>
+    <div>
+      <h1>Shadow</h1>
+      <p class="tag">Badminton shadow practice. It waits until you ask.</p>
+    </div>
+  </div>
+  <nav id="nav">
+    <button data-view="practice" class="on">Practice</button>
+    <button data-view="review">Review</button>
+    <button data-view="coach">Coach</button>
+    <button data-view="trace">Trace</button>
+  </nav>
+</header>
+
+<div id="placeholder-banner">
+  <strong>Hardware placeholder.</strong> On a headset, a swing is detected from controller
+  motion. Here, <em>Swing</em> plays one recorded swing from the simulated session so the
+  interaction can be inspected in a browser.
+</div>
+
+<main>
+  <!-- ───────────────────────── PRACTICE ───────────────────────── -->
+  <section id="practice" class="view on">
+    <div class="court">
+      <div class="counter">
+        <span id="swing-count">0</span>
+        <small>swings</small>
+      </div>
+      <div class="block-line">Block <span id="block-no">1</span> · <span id="block-progress">0 of 10</span></div>
+      <div id="swing-pulse" class="pulse"></div>
+      <p class="quiet" id="practice-quiet">Nothing is shown while you practise. That is deliberate.</p>
+      <div id="nudge" class="nudge" hidden></div>
+      <div class="controls">
+        <button id="btn-swing" class="primary">Swing</button>
+        <button id="btn-block">Play the rest of this block</button>
+      </div>
+      <div id="tracking-warn" class="warn" hidden></div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── REVIEW ───────────────────────── -->
+  <section id="review" class="view">
+    <div class="rowhead">
+      <h2>Your session</h2>
+      <div>
+        <label class="switch">
+          <input type="checkbox" id="global-mute">
+          <span>Do not offer anything. I will ask.</span>
+        </label>
+        <button id="btn-review" class="primary">Review my swings</button>
+      </div>
+    </div>
+    <p class="hint" id="review-hint">You have not asked yet. Nothing has been computed into a
+      suggestion for you to read.</p>
+    <div id="observations"></div>
+    <div id="muted-box" hidden>
+      <h3>Muted this session</h3>
+      <div id="muted-list"></div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── COACH ───────────────────────── -->
+  <section id="coach" class="view">
+    <div class="rowhead">
+      <h2>Coach view <span class="ro">read only</span></h2>
+      <button id="btn-share" class="primary">Share this session with a coach</button>
+    </div>
+    <p class="hint">This surface shows confidence, noise and dropped swings. The player's
+      view does not, because the player has one decision to make and the coach has to judge
+      whether the data supports it.</p>
+    <div id="coach-locked" class="locked">
+      <p><strong>Not shared.</strong> Sharing is the only action here that leaves the player's
+      control and cannot be undone, so it needs a deliberate act rather than a default.</p>
+    </div>
+    <div id="coach-body" hidden>
+      <div id="coach-cards" class="cards"></div>
+      <h3>Every swing</h3>
+      <div class="tablewrap"><table id="swing-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── TRACE ───────────────────────── -->
+  <section id="trace" class="view">
+    <h2>Decision trace</h2>
+    <p class="hint">Built from what the policy engine actually did, not from a summary.
+      Every state change, every suppression, every override.</p>
+    <div class="tablewrap"><table id="trace-table"></table></div>
+  </section>
+</main>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
