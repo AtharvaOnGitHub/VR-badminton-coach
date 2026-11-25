@@ -22,8 +22,8 @@ const ps = newPolicyState();
  *
  * Keyboard mode skips the three phone gates and says so, so the court is still
  * usable with no hardware. */
-const gate = { hand: false, cal: false, mirror: false, live: false };
-let session = false, keyboardOnly = false, backedOff = false;
+const gate = { hand: false, cal: false, live: false };
+let session = false, keyboardOnly = false;
 
 const racket = createRacket({
   onSwing: (r) => { if (session) sim.swing(r); },
@@ -38,12 +38,13 @@ const racket = createRacket({
     paintLobby();
   },
   onSession: (on) => { on ? startSession('phone') : stopSession(null, 'phone'); },
+  onFeed: () => { if (session) { clearTimeout(nextTimer); feedNext(); } },
   onStatus: (s) => {
     const chip = $('#racket-chip');
     chip.textContent = s === 'racket connected' ? 'racket live' : s;
     chip.className = 'hud hud-tr2 ' + (s === 'racket connected' ? 'live' : 'cold');
     if (s !== 'racket connected') {
-      gate.live = gate.mirror = false;
+      gate.live = false;
       if (session) stopSession({ title: 'The racket went quiet',
         detail: 'No frames are arriving from your phone, so a swing cannot be read. '
               + 'Reconnect on the phone, then start again.' });
@@ -112,7 +113,7 @@ function endBlock(reps) {
 }
 
 /* ---------- the lobby, and starting ---------- */
-const ready = () => keyboardOnly || (gate.hand && gate.cal && gate.mirror && gate.live);
+const ready = () => keyboardOnly || (gate.hand && gate.cal && gate.live);
 
 /* The lobby runs in three phases, and which one is showing is decided by how far
  * the player has got rather than by a wizard step they have to drive.
@@ -127,9 +128,7 @@ const ready = () => keyboardOnly || (gate.hand && gate.cal && gate.mirror && gat
  * the next frame of racket data or the lobby would snap forward again. */
 function phase() {
   if (keyboardOnly) return 'ready';
-  if (!(gate.live && gate.hand && gate.cal)) return 'setup';
-  if (backedOff || !gate.mirror) return 'seeing';
-  return 'ready';
+  return (gate.live && gate.hand && gate.cal) ? 'ready' : 'setup';
 }
 
 function paintLobby() {
@@ -140,10 +139,10 @@ function paintLobby() {
   set('#g-cal', keyboardOnly || gate.cal);
 
   // the over-the-shoulder camera, so "is that you?" is a question the view can answer
-  if (!session) sim.setView(ph === 'seeing' ? 'mirror' : ($('#view-side').checked ? 'side' : 'fp'));
-  $('#lobby-setup').hidden  = ph !== 'setup';
-  $('#lobby-seeing').hidden = ph !== 'seeing';
-  $('#lobby-ready').hidden  = ph !== 'ready';
+  if (!session) sim.setView(ph === 'ready' && !keyboardOnly ? 'mirror'
+                            : ($('#view-side').checked ? 'side' : 'fp'));
+  $('#lobby-setup').hidden = ph !== 'setup';
+  $('#lobby-ready').hidden = ph !== 'ready';
   // from "seeing" on, the panel steps aside so the hall itself is the thing on screen
   $('#lobby').classList.toggle('open', ph !== 'setup');
   document.querySelector('.stage').classList.toggle('lobbying', !session && ph === 'setup');
@@ -152,7 +151,8 @@ function paintLobby() {
   $('#ready-head').textContent = keyboardOnly ? 'Keyboard mode' : 'Ready';
   $('#ready-sub').textContent = keyboardOnly
     ? 'No phone attached. Space swings for you, WASD moves your feet.'
-    : 'Press Start on your phone, or here.';
+    : 'Move your arm and the racket follows. Press Start on your phone, or here. '
+      + 'During the drill, a tap on the phone feeds the next shuttle.';
 }
 
 function startSession(from = 'court') {
@@ -192,11 +192,7 @@ $('#alert-dismiss').addEventListener('click', () => showAlert(null));
 
 $('#btn-start').addEventListener('click', () => startSession('court'));
 $('#btn-stop').addEventListener('click', () => stopSession(null, 'court'));
-$('#btn-mirror').addEventListener('click', () => {
-  gate.mirror = true; backedOff = false; racket.confirmMirror(); paintLobby();
-});
-$('#btn-back').addEventListener('click', () => { gate.cal = false; paintLobby(); });
-$('#btn-back2').addEventListener('click', () => { backedOff = true; paintLobby(); });
+$('#btn-back2').addEventListener('click', () => { gate.cal = false; paintLobby(); });
 $('#btn-relink').addEventListener('click', () => racket.connect());
 $('#btn-keyboard').addEventListener('click', () => {
   keyboardOnly = true;
@@ -209,7 +205,7 @@ $('#btn-keyboard').addEventListener('click', () => {
  * the racket moving on screen is them, which no connection status can establish. */
 setInterval(() => {
   const on = racket.online;
-  if (on !== gate.live) { gate.live = on; if (!on) gate.mirror = false; paintLobby(); }
+  if (on !== gate.live) { gate.live = on; paintLobby(); }
   const st = racket.state;
   $('#m-pitch').textContent = on ? st.pitchDeg.toFixed(0) + '\u00b0' : '\u2014';
   $('#m-w').textContent = on ? st.w.toFixed(1) + ' rad/s' : '\u2014';

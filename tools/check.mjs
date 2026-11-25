@@ -41,7 +41,7 @@ const run = async () => {
     + `${before.reps} reps, feed ${before.feedDisabled ? 'disabled' : 'enabled'}, `
     + `start ${before.startDisabled ? 'disabled' : 'enabled'}`);
   ok('the court waits in the lobby instead of feeding', before.lobby && !before.session);
-  ok('start is refused until the gates are met', before.startDisabled);
+  ok('start is refused until the phone has reported in', before.startDisabled);
   ok('the drill controls are dead before the session', before.feedDisabled);
 
   await sleep(1800);

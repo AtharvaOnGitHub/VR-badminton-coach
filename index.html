@@ -96,35 +96,19 @@
         </div>
       </div>
 
-      <!-- Phase 2: the court is visible and the racket is live in it. The only
-           question left is whether the thing moving is the player. -->
-      <div class="seeing" id="lobby-seeing" hidden>
-        <div class="seeing-bar">
-          <div class="seeing-txt">
-            <strong>Is that you?</strong>
-            <p>Move your arm around. The racket in the hall should follow it, shaft
-              and face, in every direction.</p>
-            <div class="mrow"><span>Face angle</span><b id="m-pitch">—</b>
-              <span>Swing speed</span><b id="m-w">—</b></div>
-          </div>
-          <div class="seeing-acts">
-            <button id="btn-mirror" class="primary">Yes, that is me</button>
-            <button id="btn-back">Back</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Phase 3: everything is confirmed; the drill is one press away, on the
-           phone or here. -->
+      <!-- Phase 2: the hall is visible with the racket live in it, and the drill
+           is one press away, on the phone or here. -->
       <div class="seeing" id="lobby-ready" hidden>
         <div class="seeing-bar">
           <div class="seeing-txt">
             <strong id="ready-head">Ready</strong>
             <p id="ready-sub">Press Start on your phone, or here.</p>
+            <div class="mrow"><span>Face angle</span><b id="m-pitch">&mdash;</b>
+              <span>Swing speed</span><b id="m-w">&mdash;</b></div>
           </div>
           <div class="seeing-acts">
             <button id="btn-start" class="primary" disabled>Start the drill</button>
-            <button id="btn-back2">Back</button>
+            <button id="btn-back2">Change the grip</button>
           </div>
         </div>
       </div>

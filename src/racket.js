@@ -78,7 +78,7 @@ export function attitude(rot, refQ, hand = 'right',
 }
 
 export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
-                               onSession } = {}) {
+                               onSession, onFeed } = {}) {
   let ws = null;
   let online = false;
   let refQ = null;                // the player's rest pose, as a quaternion
@@ -111,6 +111,8 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
       if (m.type === 'racket-offline') { online = false; onStatus?.('waiting'); return; }
       // the player can start or stop the drill from the phone as well as from here
       if (m.type === 'session')     { onSession?.(!!m.on, 'phone'); return; }
+      // a tap on the phone asks for the next shuttle
+      if (m.type === 'feed')        { onFeed?.(); return; }
       if (m.type === 'frame' || m.type === 'swing') {
         if (m.ref && !refQ) setRef(m.ref);       // phone re-sends its reference
         readAttitude(m.rot || {});
@@ -145,11 +147,10 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
    * shows the same words at the same moment. */
   const contact = (power = 0.6, kind = '') => tell({ type: 'contact', power, kind });
   const alertPhone = (title, detail) => tell({ type: 'alert', title, detail });
-  const confirmMirror = () => tell({ type: 'mirror-ok' });
   const setSession = (on) => tell({ type: 'session', on });
 
   return {
-    connect, contact, alertPhone, confirmMirror, setSession,
+    connect, contact, alertPhone, setSession,
     get online() { return online && performance.now() - state.lastFrame < 2000; },
     get state() { return state; },
     get hand() { return hand; },

@@ -96,7 +96,6 @@ export default function App() {
   const [cal, setCal] = useState(null);            // rest pose, averaged
   const [calibrating, setCalibrating] = useState(false);
   const [sens, setSens] = useState('normal');
-  const [mirrorOk, setMirrorOk] = useState(false); // the court can see this racket
   const [armed, setArmed] = useState(false);       // the drill is running
   const [alert, setAlert] = useState(null);        // { title, detail }
   const [page, setPage] = useState(0);             // 0 connect, 1 hand, 2 grip, 3 ready
@@ -123,7 +122,6 @@ export default function App() {
     tick();
     try { ws.current?.close(); } catch {}
     setStatus('connecting');
-    setMirrorOk(false);
     const sock = new WebSocket(`ws://${host}:4179`);
     ws.current = sock;
     sock.onopen = () => {
@@ -138,8 +136,6 @@ export default function App() {
     sock.onmessage = (e) => {
       let m; try { m = JSON.parse(e.data); } catch { return; }
 
-      // the court confirms the player can see their own racket moving on screen
-      if (m.type === 'mirror-ok') { setMirrorOk(true); tick(); return; }
 
       // a shuttle met the strings. This is the only routine haptic
       if (m.type === 'contact') { hit(m.power ?? 0.6); return; }
@@ -264,7 +260,7 @@ export default function App() {
 
   const chooseHand = (h) => { tick(); setHand(h); send({ type: 'hand', hand: h }); setPage(2); };
 
-  const ready = !!hand && !!cal && status === 'connected' && mirrorOk;
+  const ready = !!hand && !!cal && status === 'connected';
 
   const startSession = () => {
     if (!ready) return;
@@ -294,7 +290,10 @@ export default function App() {
           <Text style={s.status}>drill running · {hand} handed · {S.label.toLowerCase()}</Text>
         </View>
 
-        <View style={s.liveBody}>
+        {/* The whole screen feeds the next shuttle. The phone is in the player's
+            hand at hip height and they are watching the court, so the target has
+            to be the size of the phone rather than the size of a button. */}
+        <Pressable style={s.liveBody} onPress={() => { tick(); send({ type: 'feed' }); }}>
           <Text style={s.big}>{swings}</Text>
           <Text style={s.cap}>swings this session</Text>
           <Text style={s.metric}>peak {peak} rad/s · counts above {S.enter}</Text>
@@ -304,10 +303,13 @@ export default function App() {
                 backgroundColor: live.w > S.enter ? '#7ff0b4' : '#3fd08a' }]} />
           </View>
           <Text style={s.liveNote}>
+            Tap anywhere to feed the next shuttle.
+          </Text>
+          <Text style={s.liveNote}>
             Watch the court, not the phone. You will feel the strings when the shuttle
             is met. A miss is silent, and the court will tell you why.
           </Text>
-        </View>
+        </Pressable>
 
         <Pressable style={s.stopBtn} onPress={() => { tick(); stopSession(); }}>
           <Text style={s.btnText}>Stop the drill</Text>
@@ -418,9 +420,7 @@ export default function App() {
         <Text style={s.readyNote}>
           {ready
             ? `${hand === 'left' ? 'Left' : 'Right'} handed, rest position set. Watch the court.`
-            : !mirrorOk
-              ? 'Last thing: on the court, move your arm and press "Yes, that is me".'
-              : 'Reconnect the phone to start.'}
+            : 'Reconnect the phone to start.'}
         </Text>
       </View>
       <View style={s.readyActs}>
