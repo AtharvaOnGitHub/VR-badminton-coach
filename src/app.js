@@ -23,7 +23,7 @@ const ps = newPolicyState();
  * Keyboard mode skips the three phone gates and says so, so the court is still
  * usable with no hardware. */
 const gate = { hand: false, cal: false, mirror: false, live: false };
-let session = false, keyboardOnly = false;
+let session = false, keyboardOnly = false, backedOff = false;
 
 const racket = createRacket({
   onSwing: (r) => { if (session) sim.swing(r); },
@@ -114,17 +114,45 @@ function endBlock(reps) {
 /* ---------- the lobby, and starting ---------- */
 const ready = () => keyboardOnly || (gate.hand && gate.cal && gate.mirror && gate.live);
 
+/* The lobby runs in three phases, and which one is showing is decided by how far
+ * the player has got rather than by a wizard step they have to drive.
+ *
+ *   setup    the phone is not attached yet. The court is hidden behind the panel,
+ *            because there is nothing worth looking at until a racket exists.
+ *   seeing   the rest pose is set, so the hall and the live racket are visible and
+ *            the only question left is whether the thing moving is them.
+ *   ready    confirmed. One press, here or on the phone.
+ *
+ * `backedOff` is the player stepping back a phase on purpose, which has to survive
+ * the next frame of racket data or the lobby would snap forward again. */
+function phase() {
+  if (keyboardOnly) return 'ready';
+  if (!(gate.live && gate.hand && gate.cal)) return 'setup';
+  if (backedOff || !gate.mirror) return 'seeing';
+  return 'ready';
+}
+
 function paintLobby() {
+  const ph = phase();
   const set = (id, on) => $(id).classList.toggle('done', !!on);
+  set('#g-link', keyboardOnly || gate.live);
   set('#g-hand', keyboardOnly || gate.hand);
   set('#g-cal', keyboardOnly || gate.cal);
-  set('#g-mirror', keyboardOnly || gate.mirror);
-  set('#g-start', session);
-  document.querySelector('.stage').classList.toggle('lobbying', !session);
+
+  // the over-the-shoulder camera, so "is that you?" is a question the view can answer
+  if (!session) sim.setView(ph === 'seeing' ? 'mirror' : ($('#view-side').checked ? 'side' : 'fp'));
+  $('#lobby-setup').hidden  = ph !== 'setup';
+  $('#lobby-seeing').hidden = ph !== 'seeing';
+  $('#lobby-ready').hidden  = ph !== 'ready';
+  // from "seeing" on, the panel steps aside so the hall itself is the thing on screen
+  $('#lobby').classList.toggle('open', ph !== 'setup');
+  document.querySelector('.stage').classList.toggle('lobbying', !session && ph === 'setup');
+
   $('#btn-start').disabled = !ready();
-  $('#btn-start').textContent = keyboardOnly ? 'Start without a phone' : 'Start the drill';
-  $('#btn-mirror').disabled = !gate.live || gate.mirror;
-  $('#btn-mirror').textContent = gate.mirror ? 'Confirmed' : 'I can see my racket move';
+  $('#ready-head').textContent = keyboardOnly ? 'Keyboard mode' : 'Ready';
+  $('#ready-sub').textContent = keyboardOnly
+    ? 'No phone attached. Space swings for you, WASD moves your feet.'
+    : 'Press Start on your phone, or here.';
 }
 
 function startSession(from = 'court') {
@@ -165,8 +193,10 @@ $('#alert-dismiss').addEventListener('click', () => showAlert(null));
 $('#btn-start').addEventListener('click', () => startSession('court'));
 $('#btn-stop').addEventListener('click', () => stopSession(null, 'court'));
 $('#btn-mirror').addEventListener('click', () => {
-  gate.mirror = true; racket.confirmMirror(); paintLobby();
+  gate.mirror = true; backedOff = false; racket.confirmMirror(); paintLobby();
 });
+$('#btn-back').addEventListener('click', () => { gate.cal = false; paintLobby(); });
+$('#btn-back2').addEventListener('click', () => { backedOff = true; paintLobby(); });
 $('#btn-relink').addEventListener('click', () => racket.connect());
 $('#btn-keyboard').addEventListener('click', () => {
   keyboardOnly = true;
@@ -175,19 +205,25 @@ $('#btn-keyboard').addEventListener('click', () => {
   paintLobby();
 });
 
-/* The mirror. Its only job is to let the player confirm that the thing moving on
- * screen is them, which no amount of connection status can establish. */
+/* The live readout under the hall. Its only job is to let the player confirm that
+ * the racket moving on screen is them, which no connection status can establish. */
 setInterval(() => {
   const on = racket.online;
   if (on !== gate.live) { gate.live = on; if (!on) gate.mirror = false; paintLobby(); }
-  $('#m-link').textContent = on ? 'live' : 'not connected';
-  $('#m-link').className = on ? 'ok' : '';
-  $('#m-hand').textContent = gate.hand ? racket.hand + ' handed' : 'not chosen';
   const st = racket.state;
-  $('#m-pitch').textContent = on ? st.pitchDeg.toFixed(0) + '°' : '—';
-  $('#m-w').textContent = on ? st.w.toFixed(1) + ' rad/s' : '—';
-  $('#m-fill').style.width = Math.min(100, (on ? st.w : 0) / 20 * 100) + '%';
+  $('#m-pitch').textContent = on ? st.pitchDeg.toFixed(0) + '\u00b0' : '\u2014';
+  $('#m-w').textContent = on ? st.w.toFixed(1) + ' rad/s' : '\u2014';
 }, 120);
+
+/* The address the phone needs, written by tools/qr.mjs when the services come up.
+ * It changes with the network, so it is read at load rather than baked into the page. */
+fetch('lan.json', { cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null)
+  .then(d => { if (!d) return;
+    $('#qr-url').textContent = d.expo;
+    $('#qr-ip').textContent = d.ip;
+    $('#qr').src = 'qr.svg?' + Date.now(); })
+  .catch(() => { $('#qr-url').textContent = 'run ./start.sh to generate'; });
 
 /* ---------- input ---------- */
 const feedNext = () => { sim.startRep(); $('#verdict').hidden = true; $('#offer').hidden = true; };
@@ -195,6 +231,13 @@ $('#btn-feed').addEventListener('click', () => { if (session) feedNext(); });
 $('#btn-swing').addEventListener('click', () => { if (session) sim.swing(racket.fallbackSwing()); });
 $('#btn-freeze').addEventListener('click', () => { if (session) sim.togglePause(); });
 $('#view-side').addEventListener('change', e => sim.setView(e.target.checked ? 'side' : 'fp'));
+$('#btn-full').addEventListener('click', () => {
+  const stage = document.querySelector('.stage');
+  document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen?.();
+});
+addEventListener('fullscreenchange', () => {
+  $('#btn-full').textContent = document.fullscreenElement ? 'Leave full screen' : 'Full screen';
+});
 
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;

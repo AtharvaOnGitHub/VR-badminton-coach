@@ -22,7 +22,8 @@
   },
   "homepage": "https://github.com/AtharvaOnGitHub/VR-badminton-coach#readme",
   "devDependencies": {
-    "playwright": "^1.49.1"
+    "playwright": "^1.49.1",
+    "qrcode": "^1.5.4"
   },
   "dependencies": {
     "three": "^0.170.0",

@@ -63,6 +63,7 @@ export default function App() {
   const [mirrorOk, setMirrorOk] = useState(false); // the court can see this racket
   const [armed, setArmed] = useState(false);       // the drill is running
   const [alert, setAlert] = useState(null);        // { title, detail }
+  const [page, setPage] = useState(0);             // 0 connect, 1 hand, 2 grip, 3 ready
 
   const ws = useRef(null);
   const inSwing = useRef(false);
@@ -92,6 +93,7 @@ export default function App() {
       if (hand) sock.send(JSON.stringify({ type: 'hand', hand }));
       if (calRef.current) sock.send(JSON.stringify({ type: 'calibration', ref: calRef.current }));
       setStatus('connected');
+      setPage((p) => (p === 0 ? 1 : p));
     };
     sock.onclose = () => { setStatus('disconnected'); stopSession('The link to the court dropped.'); };
     sock.onerror = () => { setStatus('error — check the host and the network'); };
@@ -192,10 +194,11 @@ export default function App() {
       // confirmation has to be felt rather than read.
       good();
       send({ type: 'calibration', ref });
+      setPage(3);
     }, CAL_MS);
   };
 
-  const chooseHand = (h) => { tick(); setHand(h); send({ type: 'hand', hand: h }); };
+  const chooseHand = (h) => { tick(); setHand(h); send({ type: 'hand', hand: h }); setPage(2); };
 
   const ready = !!hand && !!cal && status === 'connected' && mirrorOk;
 
@@ -249,70 +252,47 @@ export default function App() {
     );
   }
 
-  /* ---------------- setting up ---------------- */
-  const stepNum = (n, done) => (
-    <View style={[s.num, done && s.numOn]}>
-      <Text style={[s.numTxt, done && s.numTxtOn]}>{done ? '✓' : n}</Text>
+  /* ---------------- setting up ----------------
+   *
+   * One thing per page, in the order the player has to do them: attach the phone,
+   * say which hand, set the grip, then start. The last page is deliberately almost
+   * empty, because by then the player is standing up with the phone in their hand
+   * and should be looking at the court rather than reading. */
+  const steps = ['Connect', 'Hand', 'Grip', 'Start'];
+  const Chrome = ({ children, back }) => (
+    <View style={s.page}>
+      <StatusBar barStyle="light-content" />
+      <View style={s.crumbs}>
+        {steps.map((label, i) => (
+          <View key={label} style={[s.crumb, i === page && s.crumbOn, i < page && s.crumbDone]}>
+            <Text style={[s.crumbTxt, i === page && s.crumbTxtOn]}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      {alert &&
+        <View style={s.alertCard}>
+          <Text style={s.alertTitle}>{alert.title}</Text>
+          <Text style={s.alertBody}>{alert.detail}</Text>
+        </View>}
+      <ScrollView contentContainerStyle={s.pageBody}>{children}</ScrollView>
+      {back !== false &&
+        <Pressable style={s.backBtn} onPress={() => { tick(); setPage(Math.max(0, page - 1)); }}>
+          <Text style={s.backTxt}>Back</Text>
+        </Pressable>}
     </View>
   );
 
-  return (
-    <ScrollView style={s.wrap} contentContainerStyle={s.scroll}>
-      <StatusBar barStyle="light-content" />
+  /* ---- 1. connect ---- */
+  if (page === 0) return (
+    <Chrome back={false}>
       <Text style={s.h1}>Shadow Racket</Text>
-      <Text style={s.sub}>Hold the phone like a racket handle. Nothing is counted until you start.</Text>
+      <Text style={s.sub}>This phone is the racket. First, point it at the court.</Text>
 
       <View style={s.row}>
         <View style={[s.dot, { backgroundColor: dot }]} />
         <Text style={s.status}>{status}</Text>
       </View>
 
-      {alert &&
-        <View style={s.alertCard}>
-          <Text style={s.alertTitle}>{alert.title}</Text>
-          <Text style={s.alertBody}>{alert.detail}</Text>
-        </View>}
-
-      {/* ---- 1. which hand ---- */}
-      <View style={s.stepRow}>{stepNum(1, !!hand)}
-        <Text style={s.step}>Which hand do you play with?</Text></View>
-      <View style={s.handRow}>
-        {['left', 'right'].map((h) => (
-          <Pressable key={h} onPress={() => chooseHand(h)}
-            style={[s.handBtn, hand === h && s.handBtnOn]}>
-            <Text style={[s.handTxt, hand === h && s.handTxtOn]}>
-              {h === 'left' ? 'Left' : 'Right'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* ---- 2. rest pose ---- */}
-      <View style={s.stepRow}>{stepNum(2, !!cal)}
-        <Text style={s.step}>Set your rest position</Text></View>
-      <View style={s.calCard}>
-        <PoseFigure hand={hand ?? 'right'} />
-        <View style={s.calRight}>
-          <Text style={s.calHead}>Hold the phone like a racket handle</Text>
-          <Text style={s.calBody}>
-            {hand === 'left' ? 'Left' : 'Right'} hand, gripped so the screen faces
-            out to your side. Let your arm hang relaxed, so the phone sits just
-            below your hip. Stand still and tap.
-          </Text>
-          <Pressable style={[s.calBtn, calibrating && s.calBtnBusy]}
-            onPress={startCalibration} disabled={calibrating}>
-            <Text style={s.btnText}>
-              {calibrating ? 'Hold still…' : cal ? 'Set again' : 'Set rest position'}
-            </Text>
-          </Pressable>
-          {cal && !calibrating &&
-            <Text style={s.calOk}>Rest position set. Everything is measured from here.</Text>}
-        </View>
-      </View>
-
-      {/* ---- 3. connect, then be seen ---- */}
-      <View style={s.stepRow}>{stepNum(3, status === 'connected')}
-        <Text style={s.step}>Connect to the court</Text></View>
       <Text style={s.label}>Laptop address</Text>
       <TextInput style={s.input} value={host} onChangeText={setHost}
         autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation"
@@ -320,55 +300,93 @@ export default function App() {
       <Pressable style={s.btn} onPress={connect}>
         <Text style={s.btnText}>{status === 'connected' ? 'Reconnect' : 'Connect'}</Text>
       </Pressable>
+      <Text style={s.note}>
+        The court page shows this address next to its QR code. Everything stays on
+        your own network; nothing is sent anywhere else.
+      </Text>
+    </Chrome>
+  );
 
-      <View style={s.stepRow}>{stepNum(4, mirrorOk)}
-        <Text style={s.step}>Check the court can see you</Text></View>
-      <View style={s.panel}>
-        <Text style={s.metric}>swing speed now</Text>
-        <View style={s.barTrack}>
-          <View style={[s.barFill, { width: `${Math.min(100, (live.w / 20) * 100)}%` }]} />
-        </View>
-        <Text style={s.metric}>
-          tilt  {live.b?.toFixed(2)}   roll {live.g?.toFixed(2)}   yaw {live.a?.toFixed(2)}
-        </Text>
-        <Text style={mirrorOk ? s.calOk : s.panelHint}>
-          {mirrorOk
-            ? 'The court has you. You can start.'
-            : 'Move the phone and watch the racket on the laptop. When it follows you, press "I can see my racket" there.'}
-        </Text>
-      </View>
-
-      {/* ---- sensitivity ---- */}
-      <View style={s.stepRow}><View style={s.numGhost} />
-        <Text style={s.step}>Swing sensitivity</Text></View>
+  /* ---- 2. hand ---- */
+  if (page === 1) return (
+    <Chrome>
+      <Text style={s.h1}>Which hand?</Text>
+      <Text style={s.sub}>This mirrors your hitting shoulder, the racket you see on
+        court, and what it costs you to reach across your body.</Text>
       <View style={s.handRow}>
-        {Object.keys(SENS).map((k) => (
-          <Pressable key={k} onPress={() => { tick(); setSens(k); }}
-            style={[s.handBtn, sens === k && s.handBtnOn]}>
-            <Text style={[s.handTxt, sens === k && s.handTxtOn]}>{SENS[k].label}</Text>
+        {['left', 'right'].map((h) => (
+          <Pressable key={h} onPress={() => chooseHand(h)}
+            style={[s.handBig, hand === h && s.handBtnOn]}>
+            <Text style={[s.handTxt, hand === h && s.handTxtOn]}>
+              {h === 'left' ? 'Left' : 'Right'}
+            </Text>
           </Pressable>
         ))}
       </View>
-      <Text style={s.note}>
-        {S.hint}. A swing counts when the phone turns faster than {S.enter} rad/s and
-        holds it, which handling the phone does not do. Raise this if ordinary movement
-        is being counted.
-      </Text>
+    </Chrome>
+  );
 
-      {/* ---- start ---- */}
-      <Pressable style={[s.startBtn, !ready && s.startBtnOff]}
-        onPress={startSession} disabled={!ready}>
-        <Text style={[s.startTxt, !ready && s.startTxtOff]}>
-          {ready ? 'Start the drill' : 'Finish the four steps to start'}
+  /* ---- 3. grip and rest pose ---- */
+  if (page === 2) return (
+    <Chrome>
+      <Text style={s.h1}>Your grip</Text>
+      <Text style={s.sub}>Hold the phone the way the picture shows, then stand still
+        and tap. Everything the court reads is measured from this one pose.</Text>
+
+      <View style={s.calCard}>
+        <PoseFigure hand={hand ?? 'right'} />
+        <View style={s.calRight}>
+          <Text style={s.calHead}>Along its long edge, like a handle</Text>
+          <Text style={s.calBody}>
+            In your {hand === 'left' ? 'left' : 'right'} hand, with the screen facing
+            your leg. The <Text style={s.em}>top edge</Text> of the phone points
+            straight out in front of you and the bottom edge points behind you.
+            That top edge is where the racket head goes, so the phone is the handle
+            and the racket grows out of the end of it.
+          </Text>
+          <Text style={s.calBody}>
+            Let your arm hang relaxed so the phone sits just below your hip.
+          </Text>
+        </View>
+      </View>
+
+      <Pressable style={[s.calBtn, calibrating && s.calBtnBusy]}
+        onPress={startCalibration} disabled={calibrating}>
+        <Text style={s.btnText}>
+          {calibrating ? 'Hold still…' : cal ? 'Set again' : 'Set my rest position'}
         </Text>
       </Pressable>
+      {cal && !calibrating &&
+        <Text style={s.calOk}>Rest position set.</Text>}
+    </Chrome>
+  );
 
-      <Text style={s.note}>
-        Orientation and swing speed come from this phone. Position does not — an IMU
-        drifts past usefulness in about a second, so where you stand on court is still
-        your feet.
-      </Text>
-    </ScrollView>
+  /* ---- 4. ready ---- */
+  return (
+    <View style={s.page}>
+      <StatusBar barStyle="light-content" />
+      <View style={s.readyBody}>
+        <Pressable style={[s.goBtn, !ready && s.goBtnOff]}
+          onPress={startSession} disabled={!ready}>
+          <Text style={[s.goTxt, !ready && s.goTxtOff]}>Start</Text>
+        </Pressable>
+        <Text style={s.readyNote}>
+          {ready
+            ? `${hand === 'left' ? 'Left' : 'Right'} handed, rest position set. Watch the court.`
+            : !mirrorOk
+              ? 'Last thing: on the court, move your arm and press "Yes, that is me".'
+              : 'Reconnect the phone to start.'}
+        </Text>
+      </View>
+      <View style={s.readyActs}>
+        <Pressable style={s.backBtnWide} onPress={() => { tick(); setPage(0); }}>
+          <Text style={s.backTxt}>Back</Text>
+        </Pressable>
+        <Pressable style={s.backBtnWide} onPress={() => { tick(); setPage(2); }}>
+          <Text style={s.backTxt}>Recalibrate</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -385,12 +403,15 @@ function PoseFigure({ hand }) {
         <View style={s.legF} />
         <View style={s.legB} />
         <View style={s.arm} />
+        {/* the phone lies along its long edge, top edge pointing forward */}
         <View style={s.phone}>
           <View style={s.phoneScreen} />
+          <View style={s.phoneTop} />
         </View>
+        <View style={s.fwdArrow} />
         <View style={s.hipLine} />
       </View>
-      <Text style={s.figCap}>just below the hip</Text>
+      <Text style={s.figCap}>top edge points forward</Text>
     </View>
   );
 }
@@ -480,10 +501,47 @@ const s = StyleSheet.create({
   arm:   { position: 'absolute', left: 54, top: 24, width: 4, height: 50,
            backgroundColor: '#8a97a4', borderRadius: 2,
            transform: [{ rotate: '-9deg' }] },
-  phone: { position: 'absolute', left: 50, top: 72, width: 13, height: 26,
+  phone: { position: 'absolute', left: 44, top: 78, width: 30, height: 13,
            borderRadius: 3, backgroundColor: '#eef3f7', borderWidth: 1,
-           borderColor: '#9fb0bf', alignItems: 'center', justifyContent: 'center' },
-  phoneScreen: { width: 8, height: 19, borderRadius: 1.5, backgroundColor: '#3fd08a' },
-  hipLine: { position: 'absolute', left: 20, top: 70, width: 56, height: 1,
+           borderColor: '#9fb0bf', flexDirection: 'row', alignItems: 'center',
+           justifyContent: 'center' },
+  phoneScreen: { width: 21, height: 8, borderRadius: 1.5, backgroundColor: '#3fd08a' },
+  phoneTop: { position: 'absolute', right: 1, top: 1, bottom: 1, width: 3,
+              borderRadius: 2, backgroundColor: '#1f6f4a' },
+  fwdArrow: { position: 'absolute', left: 76, top: 82, width: 7, height: 5,
+              borderTopWidth: 4, borderBottomWidth: 4, borderLeftWidth: 7,
+              borderTopColor: 'transparent', borderBottomColor: 'transparent',
+              borderLeftColor: '#3fd08a', borderRightWidth: 0 },
+  hipLine: { position: 'absolute', left: 20, top: 74, width: 60, height: 1,
              backgroundColor: '#3a4650' },
+
+  /* the wizard */
+  page: { flex: 1, backgroundColor: '#0e1418', paddingTop: 58 },
+  pageBody: { padding: 22, paddingBottom: 30 },
+  crumbs: { flexDirection: 'row', gap: 6, paddingHorizontal: 22, marginBottom: 6 },
+  crumb: { flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: '#161f27',
+           alignItems: 'center' },
+  crumbDone: { backgroundColor: '#15392a' },
+  crumbOn: { backgroundColor: '#1f6f4a' },
+  crumbTxt: { color: '#6c7883', fontSize: 10.5, fontWeight: '700',
+              letterSpacing: .6, textTransform: 'uppercase' },
+  crumbTxtOn: { color: '#fff' },
+  backBtn: { paddingVertical: 15, alignItems: 'center', marginBottom: 26 },
+  backBtnWide: { flex: 1, paddingVertical: 15, alignItems: 'center', borderRadius: 10,
+                 borderWidth: 1, borderColor: '#243039' },
+  backTxt: { color: '#8b96a2', fontSize: 14, fontWeight: '600' },
+  handBig: { flex: 1, paddingVertical: 34, borderRadius: 12, backgroundColor: '#18222a',
+             borderWidth: 1, borderColor: '#243039', alignItems: 'center' },
+  em: { color: '#cfd8e2', fontWeight: '700' },
+
+  /* the start page: one thing on it */
+  readyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
+  goBtn: { width: 210, height: 210, borderRadius: 105, backgroundColor: '#2f8f5f',
+           alignItems: 'center', justifyContent: 'center' },
+  goBtnOff: { backgroundColor: '#17222a', borderWidth: 1, borderColor: '#243039' },
+  goTxt: { color: '#fff', fontSize: 38, fontWeight: '800', letterSpacing: .5 },
+  goTxtOff: { color: '#4d5964' },
+  readyNote: { color: '#8b96a2', fontSize: 13, lineHeight: 19, marginTop: 30,
+               textAlign: 'center' },
+  readyActs: { flexDirection: 'row', gap: 12, paddingHorizontal: 22, marginBottom: 40 },
 });

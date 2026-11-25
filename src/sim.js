@@ -9,7 +9,8 @@
 import * as THREE from '../vendor/three.module.js';
 import { buildHall, buildTarget, COURT } from './court.js';
 import { simulate, clearedNet, feed } from './shuttle.js';
-import { evaluateContact, produceShot, classifyShot, reachRadius, IDEAL } from './contact.js';
+import { evaluateContact, produceShot, classifyShot, reachRadius, IDEAL,
+         BODY } from './contact.js';
 import { planRemap, applyRemap, remapLabel } from './remap.js';
 
 export const PLAYER_Z = 5.5;   // rear court, behind where a clear will drop
@@ -29,10 +30,16 @@ export function createSim(canvas, hooks = {}) {
   buildHall(scene);
   const targetZone = buildTarget(scene, TARGET);
 
-  const camFP = new THREE.PerspectiveCamera(66, 1, 0.1, 100);
+  // Wide, because in the headset this fills the player's view. On a laptop a
+  // narrow field of view makes the hall feel like a window rather than a room.
+  const camFP = new THREE.PerspectiveCamera(78, 1, 0.1, 100);
   const camSide = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camSide.position.set(9.5, 3.4, 3.0);
   camSide.lookAt(0, 1.6, 0);
+  // Over the shoulder, for checking that the racket on screen is yours. Looking
+  // down the court is no use for that: an arm raised overhead sits above the
+  // field of view, exactly as it does in life.
+  const camMirror = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
   let cam = camFP;
 
   /* ---------- player ---------- */
@@ -152,6 +159,10 @@ export function createSim(canvas, hooks = {}) {
   let offerPause = false;
 
   const clock = new THREE.Clock();
+  // scratch objects for the racket pose, so the frame loop allocates nothing
+  const shoulderPos = new THREE.Vector3(), armDir = new THREE.Vector3();
+  const xAxis = new THREE.Vector3(), yAxis = new THREE.Vector3(), zAxis = new THREE.Vector3();
+  const basis = new THREE.Matrix4();
 
   function startRep() {
     const f = feed(feedRng);
@@ -298,8 +309,9 @@ export function createSim(canvas, hooks = {}) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== w || canvas.height !== h) {
       renderer.setSize(w, h, false);
-      camFP.aspect = camSide.aspect = w / h;
+      camFP.aspect = camSide.aspect = camMirror.aspect = w / h;
       camFP.updateProjectionMatrix(); camSide.updateProjectionMatrix();
+      camMirror.updateProjectionMatrix();
     }
   }
 
@@ -320,7 +332,14 @@ export function createSim(canvas, hooks = {}) {
 
     // player + racket pose
     camFP.position.set(player.x, HEAD_Y, player.z);
-    camFP.lookAt(player.x * 0.35, 1.75, -3.0);
+    // A player watches the shuttle, not the far wall, and that is also what keeps
+    // their own racket inside the view at the moment it matters.
+    if (flight && (state === S.INCOMING || state === S.OUT)) {
+      const look = sampleFlight(tF);
+      camFP.lookAt(look.x * 0.6, Math.max(1.2, Math.min(3.2, look.y)), look.z);
+    } else {
+      camFP.lookAt(player.x * 0.35, 1.75, -3.0);
+    }
     bodyMarker.position.set(player.x, 0.03, player.z);
     const sh = sampleFlight(tF);
     const reach = (state === S.INCOMING && flight)
@@ -328,16 +347,42 @@ export function createSim(canvas, hooks = {}) {
       : 0.6;
     const swingUp = state === S.INCOMING ? reach : 0.45;
     const side = (hooks.racketHand?.() === 'left') ? -1 : 1;
-    racket.position.set(player.x + side * 0.46 + (sh.x - player.x) * 0.06,
-                        1.02 + swingUp * 0.92,
-                        player.z - 1.02 - swingUp * 0.20);
-    // attitude comes from the phone when one is connected
     const att = hooks.racketAttitude?.();
-    if (att) {
-      racket.rotation.set((-att.pitchDeg + 20) * Math.PI / 180,
-                          att.yawDeg * Math.PI / 180,
-                          side * (-0.62 + swingUp * 0.50));
+
+    if (att?.shaft) {
+      /* With a phone connected the racket has all three degrees of freedom the
+         wrist has. The phone gives the direction its top edge points, which is the
+         shaft, and the direction its screen faces, which is the face. Those two
+         vectors are a complete orientation, so the racket is built from them
+         rather than from a pair of Euler angles.
+
+         The arm is not tracked, so the hand is placed along the shaft from the
+         shoulder. In an overhead the upper arm does roughly follow the racket, and
+         the alternative is a racket that pivots on a point fixed in space, which
+         is what it looked like before. */
+      shoulderPos.set(player.x + side * 0.18, BODY.shoulderY, player.z);
+      racket.scale.setScalar(remapFactor);
+      // How much the arm follows the racket. Overhead it follows almost exactly;
+      // at rest it hangs, which is why pointing the racket forward at hip height
+      // must not put the hand up at the shoulder.
+      const follow = Math.max(0, Math.min(1, att.shaft.y + 0.25));
+      armDir.set(0, -1, 0).lerp(att.shaft, follow).normalize();
+      racket.position.copy(shoulderPos)
+        .addScaledVector(armDir, BODY.armReach * remapFactor);
+
+      yAxis.copy(att.shaft).normalize();
+      zAxis.copy(att.normal).addScaledVector(yAxis, -att.normal.dot(yAxis));
+      if (zAxis.lengthSq() < 1e-6) zAxis.set(0, 1, 0).addScaledVector(yAxis, -yAxis.y);
+      zAxis.normalize();
+      xAxis.crossVectors(yAxis, zAxis);
+      basis.makeBasis(xAxis, yAxis, zAxis);
+      racket.quaternion.setFromRotationMatrix(basis);
     } else {
+      // No phone. The racket follows a scripted rise so the court still reads.
+      racket.scale.setScalar(1);
+      racket.position.set(player.x + side * 0.46 + (sh.x - player.x) * 0.06,
+                          1.02 + swingUp * 0.92,
+                          player.z - 1.02 - swingUp * 0.20);
       racket.rotation.set(-0.30 + swingUp * 0.34, 0, side * (-0.62 + swingUp * 0.50));
     }
 
@@ -346,6 +391,12 @@ export function createSim(canvas, hooks = {}) {
       const d = Math.hypot(f.position.x - player.x, f.position.z - player.z);
       const want = d < 1.9 ? Math.min(0.42, (1.9 - d) / 2.2) : 0;
       f.material.opacity += (want - f.material.opacity) * Math.min(1, dt * 6);
+    }
+
+    if (cam === camMirror) {
+      const sideM = (hooks.racketHand?.() === 'left') ? -1 : 1;
+      camMirror.position.set(player.x + sideM * 2.2, 2.05, player.z + 2.4);
+      camMirror.lookAt(player.x + sideM * 0.25, 1.40, player.z - 0.25);
     }
 
     renderer.render(scene, cam);
@@ -362,8 +413,8 @@ export function createSim(canvas, hooks = {}) {
     get offerPause() { return offerPause; },
     get player() { return { ...player }; },
     get reach() { return reachRadius(remapFactor); },
-    setView(v) { cam = v === 'side' ? camSide : camFP; },
-    get view() { return cam === camSide ? 'side' : 'fp'; },
+    setView(v) { cam = v === 'side' ? camSide : v === 'mirror' ? camMirror : camFP; },
+    get view() { return cam === camSide ? 'side' : cam === camMirror ? 'mirror' : 'fp'; },
     get remap() { return { plan, factor: remapFactor, label: remapLabel(plan, remapFactor) }; },
     useFixedFeed(on) { feedRng = on ? () => 0.5 : Math.random; },
     setRemap(f) { remapFactor = Math.max(1, Math.min(plan.factor, f)); },

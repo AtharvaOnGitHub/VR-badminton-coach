@@ -62,38 +62,70 @@
          start on its own, because a drill that begins before the player is holding
          the racket counts swings they never made. -->
     <div class="lobby" id="lobby">
-      <div class="lobby-card">
+      <!-- Phase 1: get the phone attached. The court is hidden, because there is
+           nothing to look at until the racket exists. -->
+      <div class="lobby-card" id="lobby-setup">
         <h2>Before the first shuttle</h2>
-        <p class="lobby-sub">Your phone is the racket. The court waits until it knows
-          which hand you play with, where your arm rests, and that you can see yourself
-          here.</p>
+        <p class="lobby-sub">Your phone is the racket. Three things have to be true
+          before a shuttle is fed, and all three are things the court cannot work out
+          on its own.</p>
 
-        <ol class="gates">
-          <li id="g-hand"><i></i><div><strong>Choose your hand</strong>
-            <em>on the phone</em></div></li>
-          <li id="g-cal"><i></i><div><strong>Set your rest position</strong>
-            <em>arm relaxed, phone just below the hip</em></div></li>
-          <li id="g-mirror"><i></i><div><strong>See yourself on the court</strong>
-            <em>move the phone and watch the racket below</em></div></li>
-          <li id="g-start"><i></i><div><strong>Start the drill</strong>
-            <em>here or on the phone</em></div></li>
-        </ol>
-
-        <div class="mirror" id="mirror">
-          <div class="mrow"><span>Phone</span><b id="m-link">not connected</b></div>
-          <div class="mrow"><span>Hand</span><b id="m-hand">—</b></div>
-          <div class="mrow"><span>Face angle</span><b id="m-pitch">—</b></div>
-          <div class="mrow"><span>Swing speed</span><b id="m-w">—</b></div>
-          <div class="mbar"><span id="m-fill"></span></div>
-          <div class="macts">
-            <button id="btn-mirror" disabled>I can see my racket move</button>
-            <button id="btn-relink" class="ghost">Reconnect</button>
+        <div class="setup-grid">
+          <div class="qr-box">
+            <img id="qr" src="qr.svg" alt="QR code for the Shadow Racket app">
+            <p class="qr-cap">Scan with the camera, or with Expo Go</p>
+            <div class="qr-lines">
+              <span>App</span><code id="qr-url">starting…</code>
+              <span>Type this into the app</span><code id="qr-ip">…</code>
+            </div>
           </div>
+
+          <ol class="gates">
+            <li id="g-link"><i></i><div><strong>Connect the phone</strong>
+              <em>scan, then tap Connect</em></div></li>
+            <li id="g-hand"><i></i><div><strong>Choose your hand</strong>
+              <em>mirrors the shoulder, the grip and the reach across your body</em></div></li>
+            <li id="g-cal"><i></i><div><strong>Set your grip and rest position</strong>
+              <em>arm relaxed, phone along its long edge, top edge pointing forward</em></div></li>
+          </ol>
         </div>
 
         <div class="lobby-acts">
-          <button id="btn-start" class="primary" disabled>Start the drill</button>
+          <button id="btn-relink" class="ghost">Reconnect</button>
           <button id="btn-keyboard">Play without a phone</button>
+        </div>
+      </div>
+
+      <!-- Phase 2: the court is visible and the racket is live in it. The only
+           question left is whether the thing moving is the player. -->
+      <div class="seeing" id="lobby-seeing" hidden>
+        <div class="seeing-bar">
+          <div class="seeing-txt">
+            <strong>Is that you?</strong>
+            <p>Move your arm around. The racket in the hall should follow it, shaft
+              and face, in every direction.</p>
+            <div class="mrow"><span>Face angle</span><b id="m-pitch">—</b>
+              <span>Swing speed</span><b id="m-w">—</b></div>
+          </div>
+          <div class="seeing-acts">
+            <button id="btn-mirror" class="primary">Yes, that is me</button>
+            <button id="btn-back">Back</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 3: everything is confirmed; the drill is one press away, on the
+           phone or here. -->
+      <div class="seeing" id="lobby-ready" hidden>
+        <div class="seeing-bar">
+          <div class="seeing-txt">
+            <strong id="ready-head">Ready</strong>
+            <p id="ready-sub">Press Start on your phone, or here.</p>
+          </div>
+          <div class="seeing-acts">
+            <button id="btn-start" class="primary" disabled>Start the drill</button>
+            <button id="btn-back2">Back</button>
+          </div>
         </div>
       </div>
     </div>
@@ -103,6 +135,7 @@
     <button id="btn-swing" disabled>Swing</button>
     <button id="btn-freeze" disabled>Freeze the shuttle</button>
     <button id="btn-stop" disabled>End the drill</button>
+    <button id="btn-full">Full screen</button>
     <label class="switch"><input type="checkbox" id="view-side"> Side view</label>
     <span class="grow"></span>
     <span class="quiet" id="block-line">Block 1 · 0 of 10</span>

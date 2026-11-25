@@ -124,6 +124,80 @@ const run = async () => {
   ok('reaching across the body costs more than reaching to the racket side',
      across.left > across.right, `${across.left} vs ${across.right}`);
 
+  console.log('\n6. THE RACKET HAS ALL THREE DEGREES OF FREEDOM');
+  const dof = await page.evaluate(async () => {
+    const m = await import('/src/racket.js');
+    // The real grip: phone on its long edge, screen to the leg, top edge forward.
+    // That is a roll of about -90 degrees, and it is what makes beta the axis the
+    // arm raises on. A rest pose that is not this one is not a test of anything.
+    const rest = { a: 0, b: 0, g: -Math.PI / 2 };
+    const refQ = m.restQuaternion(rest);
+    const read = (d = {}) => m.attitude(
+      { alpha: rest.a + (d.a || 0), beta: rest.b + (d.b || 0), gamma: rest.g + (d.g || 0) },
+      refQ, 'right');
+    const v = o => ({ x: +o.x.toFixed(3), y: +o.y.toFixed(3), z: +o.z.toFixed(3) });
+    const ang = (p, q) => Math.acos(Math.max(-1, Math.min(1,
+      p.x * q.x + p.y * q.y + p.z * q.z))) * 180 / Math.PI;
+
+    const base = read();
+    const t = 40 * Math.PI / 180;
+    const moved = { alpha: read({ a: t }), beta: read({ b: t }), gamma: read({ g: t }) };
+    const left = m.attitude({ alpha: rest.a + t, beta: rest.b, gamma: rest.g }, refQ, 'left');
+
+    return {
+      restShaft: v(base.shaft), restNormal: v(base.normal),
+      swing: Object.fromEntries(Object.entries(moved).map(([k, r]) =>
+        [k, { shaft: +ang(base.shaft, r.shaft).toFixed(1),
+              face: +ang(base.normal, r.normal).toFixed(1),
+              pitch: +r.pitchDeg.toFixed(1) }])),
+      mirrored: +left.shaft.x.toFixed(3), righty: +moved.alpha.shaft.x.toFixed(3),
+    };
+  });
+  console.log(`  at the rest pose: shaft ${JSON.stringify(dof.restShaft)}, `
+            + `face ${JSON.stringify(dof.restNormal)}`);
+  for (const [k, r] of Object.entries(dof.swing))
+    console.log(`  turn 40° about ${k.padEnd(5)} -> shaft moves ${String(r.shaft).padStart(5)}°, `
+              + `face ${String(r.face).padStart(5)}°, pitch ${r.pitch}°`);
+
+  ok('the rest pose puts the shaft down the court',
+     Math.abs(dof.restShaft.z + 1) < 0.02 && Math.abs(dof.restShaft.y) < 0.02,
+     JSON.stringify(dof.restShaft));
+  ok('the rest pose faces the strings out to the side',
+     Math.abs(dof.restNormal.x + 1) < 0.02, JSON.stringify(dof.restNormal));
+  const axes = Object.values(dof.swing);
+  ok('every axis of the wrist moves the racket', axes.every(a => a.shaft > 15 || a.face > 15),
+     JSON.stringify(dof.swing));
+  ok('the three axes do not collapse into one motion',
+     new Set(axes.map(a => Math.round(a.shaft))).size >= 2
+     && new Set(axes.map(a => Math.round(a.face))).size >= 2);
+  ok('a left-hander is the mirror image',
+     Math.abs(dof.mirrored + dof.righty) < 1e-6 && Math.abs(dof.righty) > 0.3,
+     `${dof.mirrored} vs ${dof.righty}`);
+
+  // Each axis should do the physically right thing, not merely something.
+  const lift = await page.evaluate(async () => {
+    const m = await import('/src/racket.js');
+    const rest = { a: 0, b: 0, g: -Math.PI / 2 };
+    const refQ = m.restQuaternion(rest);
+    const at = (d) => m.attitude({ alpha: rest.a + (d.a || 0), beta: rest.b + (d.b || 0),
+                                   gamma: rest.g + (d.g || 0) }, refQ, 'right');
+    const r = (o) => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
+    const t = 50 * Math.PI / 180;
+    return { up: r(at({ b: t }).shaft), round: r(at({ a: t }).shaft),
+             twistShaft: r(at({ g: t }).shaft), twistFace: r(at({ g: t }).normal) };
+  });
+  console.log(`  raise the arm 50°  -> shaft ${JSON.stringify(lift.up)}`);
+  console.log(`  swing it across    -> shaft ${JSON.stringify(lift.round)}`);
+  console.log(`  twist the handle   -> shaft ${JSON.stringify(lift.twistShaft)}, `
+            + `face ${JSON.stringify(lift.twistFace)}`);
+  ok('raising the arm lifts the racket head', lift.up.y > 0.7 && lift.up.z < -0.5,
+     JSON.stringify(lift.up));
+  ok('swinging across sweeps it sideways, not upward',
+     Math.abs(lift.round.x) > 0.7 && Math.abs(lift.round.y) < 0.05, JSON.stringify(lift.round));
+  ok('twisting the handle turns the face and leaves the shaft alone',
+     Math.abs(lift.twistShaft.z + 1) < 0.02 && Math.abs(lift.twistFace.x + 1) > 0.2,
+     JSON.stringify(lift.twistShaft));
+
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();
   process.exit(fail ? 1 : 0);

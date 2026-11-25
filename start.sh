@@ -35,6 +35,7 @@ cat <<BANNER
   Court       http://localhost:4178
   Relay       ws://$IP:4179
   Phone app   exp://$IP:8081          Expo SDK pin: $SDK
+              the QR code for this is on the court page
 
   On the phone:
     1. open Expo Go and scan the QR below, or enter exp://$IP:8081
@@ -46,6 +47,9 @@ cat <<BANNER
   this script to pick up the new IP.
 
 BANNER
+
+# the QR code and the address the phone needs, for the current network
+node tools/qr.mjs || echo "  (QR generation failed; the court will still run)"
 
 python3 -m http.server 4178 >/dev/null 2>&1 &
 PIDS+=($!)
