@@ -104,9 +104,19 @@ export function createSim(canvas, hooks = {}) {
     new THREE.MeshBasicMaterial({ color: 0x3fd08a, transparent: true, opacity: 0.45 }));
   ghost.visible = false; scene.add(ghost);
   const contactMark = new THREE.Mesh(
-    new THREE.SphereGeometry(0.06, 12, 10),
+    new THREE.SphereGeometry(0.07, 12, 10),
     new THREE.MeshBasicMaterial({ color: 0xff6b6b }));
   contactMark.visible = false; scene.add(contactMark);
+  // the gap between where the shuttle is and where the stroke wants to meet it
+  const gapLine = new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineDashedMaterial({ color: 0xffc46b, dashSize: 0.09, gapSize: 0.06 }));
+  gapLine.visible = false; scene.add(gapLine);
+  const showGap = (a, b) => {
+    gapLine.geometry.dispose();
+    gapLine.geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+    gapLine.computeLineDistances();
+    gapLine.visible = true;
+  };
 
   /* ---------- furniture fade-in (passthrough safety) ---------- */
   const furniture = [];
@@ -233,9 +243,10 @@ export function createSim(canvas, hooks = {}) {
       ghost.position.set(player.x, applyRemap(plan.safeReal, remapFactor), player.z - IDEAL.ahead);
       ghost.visible = true;
       contactMark.position.set(s.x, s.y, s.z); contactMark.visible = true;
+      showGap(contactMark.position.clone(), ghost.position.clone());
     } else {
       if (pausedAt !== null) { pausedTotal += performance.now() - pausedAt; pausedAt = null; }
-      ghost.visible = false; contactMark.visible = false;
+      ghost.visible = false; contactMark.visible = false; gapLine.visible = false;
     }
     hooks.onFrozen?.(frozen);
     return frozen;
@@ -299,7 +310,7 @@ export function createSim(canvas, hooks = {}) {
     // furniture fades in as the player nears it
     for (const f of furniture) {
       const d = Math.hypot(f.position.x - player.x, f.position.z - player.z);
-      const want = d < 1.9 ? Math.min(0.85, (1.9 - d) / 1.0) : 0;
+      const want = d < 1.9 ? Math.min(0.42, (1.9 - d) / 2.2) : 0;
       f.material.opacity += (want - f.material.opacity) * Math.min(1, dt * 6);
     }
 
@@ -325,8 +336,15 @@ export function createSim(canvas, hooks = {}) {
     showIdeal(on) { if (on) { ghost.position.set(player.x,
         applyRemap(plan.safeReal, remapFactor), player.z - IDEAL.ahead); }
         ghost.visible = on; },
-    markContact(r, on) { if (on && r?.contact) {
-        contactMark.position.set(r.contact.x, r.contact.y, r.contact.z); }
-        contactMark.visible = !!on; },
+    markContact(r, on) {
+      if (on && r?.contact) {
+        contactMark.position.set(r.contact.x, r.contact.y, r.contact.z);
+        ghost.position.set(r.contact.x, applyRemap(plan.safeReal, remapFactor),
+                           PLAYER_Z - IDEAL.ahead);
+        ghost.visible = true;
+        showGap(contactMark.position.clone(), ghost.position.clone());
+      } else { gapLine.visible = false; }
+      contactMark.visible = !!on;
+    },
   };
 }

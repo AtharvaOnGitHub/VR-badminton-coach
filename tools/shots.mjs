@@ -1,75 +1,96 @@
-// Reproducible storyboard frames. Run: node tools/shots.mjs
-// Drives the real app in a headless browser and captures each state the
-// report refers to, so the figures cannot drift from the code.
+// Reproducible storyboard frames. Run: node tools/shots.mjs  (server on :4178)
+// Drives the real app so the report figures cannot drift from the code.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 
 const URL = 'http://localhost:4178/';
 const OUT = 'docs/shots';
 mkdirSync(OUT, { recursive: true });
-
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// timings found by tools/check.mjs: in-target window is roughly 1420-1640 ms
+const T = { good: 1500, late: 1800, early: 1280 };
 
 const run = async () => {
   const b = await chromium.launch();
-  const page = await b.newPage({ viewport: { width: 1000, height: 760 },
+  const page = await b.newPage({ viewport: { width: 1180, height: 720 },
                                  deviceScaleFactor: 2 });
   page.on('dialog', d => d.accept());
   await page.goto(URL, { waitUntil: 'networkidle' });
+  await sleep(400);
+  await page.evaluate(() => window.shadow.sim.useFixedFeed(true));
 
-  const blocks = async n => {
-    for (let i = 0; i < n; i++) {
-      await page.click('#btn-block');
-      await page.waitForFunction(
-        c => +document.querySelector('#swing-count').textContent >= c,
-        undefined, { timeout: 8000 }
-      ).catch(() => {});
-      await sleep(1400);
-    }
-  };
-  const shot = async (name, sel) => {
-    const t = sel ? page.locator(sel) : page;
-    await t.screenshot({ path: `${OUT}/${name}.png` });
-    console.log('·', name);
+  const shot = (n, sel) => (sel ? page.locator(sel) : page)
+    .screenshot({ path: `${OUT}/${n}.png` }).then(() => console.log('·', n));
+
+  const rep = async (ms, { swing = true } = {}) => {
+    await page.evaluate(() => window.shadow.sim.startRep());
+    await sleep(ms);
+    if (swing) await page.evaluate(() => window.shadow.sim.swing());
+    await sleep(850);
   };
 
-  // 1 — practising, nothing shown
-  await blocks(3);
-  await shot('01-practice-quiet');
+  // 1 — the shuttle on its way in, first person, nothing in the way
+  await page.evaluate(() => window.shadow.sim.startRep());
+  await sleep(1150);
+  await shot('01-incoming', '.stage');
 
-  // 2 — block boundary, a single offer, still nothing mid-swing
-  await blocks(2);
-  await shot('02-nudge-at-block-end');
+  // 2 — a rep that lands in the target
+  await page.evaluate(() => window.shadow.sim.swing());
+  await sleep(900);
+  await shot('02-in-target', '.stage');
 
-  // 3 — the player pulls the review
+  // 3 — the same rep from the side: feed arc, strike, landing
+  await page.evaluate(() => window.shadow.sim.setView('side'));
+  await sleep(350);
+  await shot('03-side-arc', '.stage');
+  await page.evaluate(() => window.shadow.sim.setView('fp'));
+
+  // 4 — freeze mid-flight: where the shuttle is vs where the stroke wants it
+  await page.evaluate(() => window.shadow.sim.startRep());
+  await sleep(1430);
+  await page.evaluate(() => window.shadow.sim.togglePause());
+  await sleep(250);
+  await page.evaluate(() => window.shadow.sim.setView('side'));
+  await sleep(300);
+  await shot('04-frozen-gap', '.stage');
+  await page.evaluate(() => { window.shadow.sim.togglePause();
+                              window.shadow.sim.setView('fp'); });
+  await sleep(900);
+
+  // build a session with a clear pattern: late contact on the misses
+  for (let i = 0; i < 4; i++) await rep(T.good);
+  for (let i = 0; i < 5; i++) await rep(T.late);
+  for (let i = 0; i < 3; i++) await rep(T.good);
+
+  // 5 — the offer, after three past the target
+  await page.evaluate(() => window.shadow.sim.startRep());
+  await sleep(300);
+  await shot('05-offer', '.stage');
+  await page.evaluate(() => window.shadow.sim.swing());
+  await sleep(800);
+
+  // 6 — the player asks
   await page.click('[data-view="review"]'); await sleep(200);
-  await page.click('#btn-review');          await sleep(400);
-  await shot('03-review-pulled');
+  await page.click('#btn-review'); await sleep(450);
+  await shot('06-review');
 
-  // 4 — first dismissal: gone for this block, silently
-  await page.click('[data-dismiss="swingPlane"]'); await sleep(300);
-  await shot('04-dismissed-once');
+  // 7 — put it away twice, and it is muted for the session
+  const d1 = await page.locator('[data-dismiss]').first();
+  if (await d1.count()) { await d1.click(); await sleep(300); }
+  await page.click('#btn-review'); await sleep(300);
+  const d2 = await page.locator('[data-dismiss]').first();
+  if (await d2.count()) { await d2.click(); await sleep(400); }
+  await shot('07-muted');
 
-  // 5 — plays on, it returns, second dismissal mutes it for the session
-  await page.click('[data-view="practice"]'); await sleep(150);
-  await blocks(1);
-  await page.click('[data-view="review"]'); await sleep(150);
-  await page.click('#btn-review');          await sleep(300);
-  const again = await page.locator('[data-dismiss="swingPlane"]').count();
-  if (again) { await page.click('[data-dismiss="swingPlane"]'); await sleep(400); }
-  await shot('05-muted-for-session');
+  // 8 — the room page: the remap, stated and adjustable
+  await page.click('[data-view="setup"]'); await sleep(300);
+  await shot('08-room');
 
-  // 6 — coach view, gated
+  // 9 — coach view, after the player shares
   await page.click('[data-view="coach"]'); await sleep(250);
-  await shot('06-coach-locked');
-
-  // 7 — coach view, shared
   await page.click('#btn-share'); await sleep(500);
-  await shot('07-coach-shared');
-
-  // 8 — the trace
-  await page.click('[data-view="trace"]'); await sleep(300);
-  await shot('08-trace');
+  await shot('09-coach');
 
   await b.close();
 };
