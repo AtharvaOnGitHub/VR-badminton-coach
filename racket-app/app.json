@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Shadow Racket",
+    "slug": "shadow-racket",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.shadow.racket"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

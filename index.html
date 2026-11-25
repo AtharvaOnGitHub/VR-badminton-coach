@@ -21,9 +21,11 @@
 </header>
 
 <div id="placeholder-banner">
-  <strong>Headset placeholder.</strong> In the headset your head and racket are tracked and
-  you physically step. Here, <kbd>←</kbd><kbd>→</kbd> step and <kbd>Space</kbd> swings — the
-  timing of that press sets where you meet the shuttle, which is the variable that matters.
+  <strong>Racket:</strong> your phone, running the companion app in <em>Expo Go</em> — it sends
+  the racket's attitude and your swing speed over your network. <strong>Feet:</strong>
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, standing in for physically stepping in the
+  headset. With no phone connected, <kbd>Space</kbd> plays a default swing so the court is
+  still usable.
 </div>
 
 <main>
@@ -36,17 +38,21 @@
       <div class="of">of <span id="shot-count">0</span></div>
     </div>
     <div class="hud hud-tr" id="remap-chip"></div>
+    <div class="hud hud-tr2 cold" id="racket-chip">no racket</div>
+    <div class="hud hud-tr3 live" id="hand-chip" hidden></div>
+    <div class="hud hud-tr4 live" id="cal-chip" hidden></div>
     <div class="hud hud-bc" id="verdict"></div>
     <div class="hud hud-bl" id="offer" hidden></div>
     <div class="hud hud-br" id="keys">
-      <kbd>Space</kbd> swing &nbsp; <kbd>←</kbd><kbd>→</kbd> step &nbsp;
-      <kbd>P</kbd> freeze &nbsp; <kbd>Enter</kbd> next
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp; <kbd>Space</kbd> swing
+      &nbsp; <kbd>P</kbd> freeze &nbsp; <kbd>Enter</kbd> next
     </div>
   </div>
   <div class="bar">
     <button id="btn-feed" class="primary">Feed a shuttle</button>
     <button id="btn-swing">Swing</button>
     <button id="btn-freeze">Freeze the shuttle</button>
+    <button id="btn-racket">Connect my phone</button>
     <label class="switch"><input type="checkbox" id="view-side"> Side view</label>
     <span class="grow"></span>
     <span class="quiet" id="block-line">Block 1 · 0 of 10</span>

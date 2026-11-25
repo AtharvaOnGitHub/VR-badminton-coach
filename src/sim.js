@@ -8,12 +8,14 @@
 
 import * as THREE from '../vendor/three.module.js';
 import { buildHall, buildTarget, COURT } from './court.js';
-import { simulate, clearedNet, feed, strike, IDEAL } from './shuttle.js';
+import { simulate, clearedNet, feed } from './shuttle.js';
+import { evaluateContact, produceShot, classifyShot, reachRadius, IDEAL } from './contact.js';
 import { planRemap, applyRemap, remapLabel } from './remap.js';
 
-export const PLAYER_Z = 4.0;
+export const PLAYER_Z = 5.5;   // rear court, behind where a clear will drop
 export const HEAD_Y = 1.70;
 const STEP = 0.62;              // metres per step
+const BOUND = { x: 2.4, zMin: 4.0, zMax: 6.4 };   // where the player may stand
 const TARGET = { x: 0, z: -4.8, w: 2.0, d: 2.8 };
 
 export function createSim(canvas, hooks = {}) {
@@ -34,7 +36,7 @@ export function createSim(canvas, hooks = {}) {
   let cam = camFP;
 
   /* ---------- player ---------- */
-  const player = { x: 0, z: PLAYER_Z, stepped: false };
+  const player = { x: 0, z: PLAYER_Z, moved: false };
   const racket = new THREE.Group();
   const forearm = new THREE.Mesh(
     new THREE.CylinderGeometry(0.045, 0.055, 0.30, 10),
@@ -156,10 +158,12 @@ export function createSim(canvas, hooks = {}) {
     flight = simulate(f.p0, f.v0);
     repT0 = performance.now(); pausedTotal = 0; pausedAt = null; frozen = false;
     state = S.INCOMING;
-    player.stepped = false;
+    // Recover to base between reps, as you would on court. Without this the
+    // player drifts across the session and every rep starts somewhere different.
+    player.x = 0; player.z = PLAYER_Z; player.moved = false;
     landMark.visible = false; contactMark.visible = false; ghost.visible = false;
     setLine(trailOut, []);
-    rep = { id: reps.length, swung: false };
+    rep = { id: reps.length, swung: false, resolved: false };
     hooks.onState?.({ state, rep: reps.length + 1 });
   }
 
@@ -178,20 +182,34 @@ export function createSim(canvas, hooks = {}) {
     return pts[pts.length - 1];
   }
 
-  function swing() {
-    if (state !== S.INCOMING || rep.swung) return;
+  function swing(racketIn) {
+    if (state !== S.INCOMING || rep.swung || rep.resolved) return;
     const s = sampleFlight(tNow());
-    const rawAhead = player.z - s.z;              // >0 means met in front of the head
-    const lateral = s.x - player.x;
-    // Reaching sideways pulls the contact back behind the head. This is why the
-    // step matters: without it the player meets the shuttle late by default.
-    const stretch = Math.max(0, Math.abs(lateral) - 0.35) * 0.55;
-    const ahead = rawAhead - stretch;
-    const realHeight = Math.min(s.y, plan.safeReal);
-    const vHeight = applyRemap(realHeight, remapFactor);
+    const r = racketIn || { pitchDeg: -12, yawDeg: 0, power: 0.75, source: 'keyboard' };
 
-    const k = strike({ ahead, height: vHeight, power: 0.82, lateral });
-    const out = simulate(k.p0, k.v0);
+    const c = evaluateContact({ player, shuttle: s, remapFactor,
+                                hand: hooks.racketHand?.() ?? 'right' });
+
+    // A swing at thin air is a whiff. The shuttle carries on; nothing is produced.
+    if (!c.reached) {
+      Object.assign(rep, {
+        swung: true, resolved: true, outcome: 'whiff', reason: c.reason,
+        ahead: c.ahead, dist: c.dist, reach: c.reach, racket: r.source,
+        contact: { x: s.x, y: s.y, z: s.z },
+      });
+      reps.push(rep);
+      contactMark.position.set(s.x, s.y, s.z); contactMark.visible = true;
+      ghost.position.set(player.x, Math.min(BODY_REACH_Y(), 2.9), player.z - IDEAL.ahead);
+      ghost.visible = true;
+      showGap(contactMark.position.clone(), ghost.position.clone());
+      hooks.onShot?.(rep, reps);
+      return;
+    }
+
+    const shot = produceShot(c, { facePitch: r.pitchDeg, faceYaw: r.yawDeg,
+                                  power: r.power });
+    const kind = classifyShot(shot);
+    const out = simulate(shot.p0, shot.v0);
     const net = clearedNet(out.pts);
     const inTarget = net.cleared &&
       Math.abs(out.landing.x - TARGET.x) <= TARGET.w / 2 &&
@@ -203,12 +221,14 @@ export function createSim(canvas, hooks = {}) {
       : 'short';
 
     Object.assign(rep, {
-      swung: true, ahead: +ahead.toFixed(3), rawAhead: +rawAhead.toFixed(3),
-      lateral: +lateral.toFixed(3), stepped: player.stepped,
-      realHeight: +realHeight.toFixed(2), vHeight: +vHeight.toFixed(2),
+      swung: true, resolved: true,
+      ahead: c.ahead, lateral: c.lateral, vHeight: c.height,
+      underneath: c.underneath, stretched: c.stretched, moved: player.moved,
+      facePitch: r.pitchDeg, power: +r.power.toFixed(2), racket: r.source,
+      kind, pitchDeg: shot.pitchDeg, speed: shot.speed, forcedUp: shot.forcedUp,
       contact: { x: s.x, y: s.y, z: s.z },
       landing: out.landing, outcome, netY: +net.y.toFixed(2),
-      pitchDeg: +k.pitchDeg.toFixed(1), remapFactor,
+      remapFactor,
     });
     reps.push(rep);
 
@@ -222,16 +242,18 @@ export function createSim(canvas, hooks = {}) {
     state = S.OUT;
     hooks.onShot?.(rep, reps);
 
-    // Three misses in a row and the system offers a pause. It offers; it does not take.
     const last3 = reps.slice(-3);
-    offerPause = last3.length === 3 && last3.every(r => r.outcome !== 'in');
+    offerPause = last3.length === 3 && last3.every(x => x.outcome !== 'in');
     hooks.onOfferPause?.(offerPause);
   }
 
-  function step(dir) {
-    if (state !== S.INCOMING) return;
-    player.x = Math.max(-2.2, Math.min(2.2, player.x + dir * STEP));
-    player.stepped = true;
+  const BODY_REACH_Y = () => 1.45 + reachRadius(remapFactor) * 0.92;
+
+  /** Step on the court. dx is sideways, dz is towards or away from the net. */
+  function step(dx, dz = 0) {
+    player.x = Math.max(-BOUND.x, Math.min(BOUND.x, player.x + dx * STEP));
+    player.z = Math.max(BOUND.zMin, Math.min(BOUND.zMax, player.z + dz * STEP));
+    player.moved = true;
   }
 
   function togglePause() {
@@ -257,9 +279,12 @@ export function createSim(canvas, hooks = {}) {
     if (!flight || frozen) return;
     const end = flight.pts[flight.pts.length - 1].t;
     if (state === S.INCOMING && tNow() > end) {
-      rep.swung = false; rep.outcome = 'missed'; rep.ahead = null;
-      reps.push(rep); state = S.DONE;
-      hooks.onShot?.(rep, reps);
+      if (!rep.resolved) {
+        rep.swung = false; rep.resolved = true; rep.outcome = 'missed'; rep.ahead = null;
+        reps.push(rep);
+        hooks.onShot?.(rep, reps);
+      }
+      state = S.DONE;
     } else if (state === S.OUT && tNow() > end) {
       state = S.DONE;
       hooks.onState?.({ state, rep: reps.length });
@@ -302,10 +327,19 @@ export function createSim(canvas, hooks = {}) {
       ? Math.max(0.6, Math.min(1.0, 1.0 - Math.abs(sh.z - player.z) / 6))
       : 0.6;
     const swingUp = state === S.INCOMING ? reach : 0.45;
-    racket.position.set(player.x + 0.46 + (sh.x - player.x) * 0.06,
+    const side = (hooks.racketHand?.() === 'left') ? -1 : 1;
+    racket.position.set(player.x + side * 0.46 + (sh.x - player.x) * 0.06,
                         1.02 + swingUp * 0.92,
                         player.z - 1.02 - swingUp * 0.20);
-    racket.rotation.set(-0.30 + swingUp * 0.34, 0, -0.62 + swingUp * 0.50);
+    // attitude comes from the phone when one is connected
+    const att = hooks.racketAttitude?.();
+    if (att) {
+      racket.rotation.set((-att.pitchDeg + 20) * Math.PI / 180,
+                          att.yawDeg * Math.PI / 180,
+                          side * (-0.62 + swingUp * 0.50));
+    } else {
+      racket.rotation.set(-0.30 + swingUp * 0.34, 0, side * (-0.62 + swingUp * 0.50));
+    }
 
     // furniture fades in as the player nears it
     for (const f of furniture) {
@@ -326,6 +360,8 @@ export function createSim(canvas, hooks = {}) {
     get tFlight() { return tNow(); },
     get flightEnd() { return flight ? flight.pts.at(-1).t : null; },
     get offerPause() { return offerPause; },
+    get player() { return { ...player }; },
+    get reach() { return reachRadius(remapFactor); },
     setView(v) { cam = v === 'side' ? camSide : camFP; },
     get view() { return cam === camSide ? 'side' : 'fp'; },
     get remap() { return { plan, factor: remapFactor, label: remapLabel(plan, remapFactor) }; },

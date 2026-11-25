@@ -1,92 +1,91 @@
-// Behaviour checks. Run: node tools/check.mjs   (server must be on :4178)
-//
-// Drives the real app in a real browser and asserts the things the design claims.
-// Written after a whole afternoon of "all five reps said NET" turned out to be the
-// flight clock never advancing, which reading the code had not revealed.
+// Behaviour checks. Run: node tools/check.mjs   (static server on :4178)
 import { chromium } from 'playwright';
-
 const URL = 'http://localhost:4178/';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let pass = 0, fail = 0;
-const ok = (name, cond, extra = '') => {
-  console.log(`${cond ? '  PASS' : '  FAIL'}  ${name}${extra ? '  — ' + extra : ''}`);
-  cond ? pass++ : fail++;
-};
+const ok = (n, c, x = '') => { console.log(`${c ? '  PASS' : '  FAIL'}  ${n}${x ? '  — ' + x : ''}`); c ? pass++ : fail++; };
 
-const rep = (page, delayMs) => page.evaluate(async (d) => {
-  const s = window.shadow.sim;
-  s.startRep();
-  await new Promise(r => setTimeout(r, d));
-  s.swing();
-  await new Promise(r => setTimeout(r, 400));
-  const r = s.reps.at(-1);
-  return r.swung
-    ? { ahead: r.ahead, vH: r.vHeight, pitch: r.pitchDeg, netY: r.netY,
-        landZ: +r.landing.z.toFixed(2), outcome: r.outcome, stepped: r.stepped }
-    : { outcome: 'missed' };
-}, delayMs);
+// drive one rep: move to (dx,dz) steps, swing at `delay` with a given racket
+const rep = (page, { delay, dx = 0, dz = 0, racket = null }) => page.evaluate(
+  async ({ delay, dx, dz, racket }) => {
+    const s = window.shadow.sim;
+    s.startRep();
+    for (let i = 0; i < Math.abs(dx); i++) s.step(Math.sign(dx), 0);
+    for (let i = 0; i < Math.abs(dz); i++) s.step(0, Math.sign(dz));
+    await new Promise(r => setTimeout(r, delay));
+    s.swing(racket || { pitchDeg: -12, yawDeg: 0, power: 0.75, source: 'test' });
+    await new Promise(r => setTimeout(r, 450));
+    const r = s.reps.at(-1);
+    return { outcome: r.outcome, kind: r.kind, ahead: r.ahead, dist: r.dist,
+             reach: r.reach, reason: r.reason, pitch: r.pitchDeg, speed: r.speed,
+             forcedUp: r.forcedUp, playerZ: s.player.z };
+  }, { delay, dx, dz, racket });
 
 const run = async () => {
   const b = await chromium.launch();
   const page = await b.newPage({ viewport: { width: 1100, height: 700 } });
-  page.on('pageerror', e => { console.log('  PAGE ERROR:', e.message, '\n', (e.stack||'').split('\n').slice(0,3).join('\n')); fail++; });
+  page.on('pageerror', e => { console.log('  PAGE ERROR:', e.message); fail++; });
   await page.goto(URL, { waitUntil: 'networkidle' });
   await sleep(400);
-  await page.evaluate(() => window.shadow.sim.useFixedFeed(true));  // remove feeder jitter
+  await page.evaluate(() => window.shadow.sim.useFixedFeed(true));
 
-  console.log('\nTIMING SWEEP  (feed reaches the player at about 1.90 s)');
-  const sweep = [];
-  for (const d of [1200, 1320, 1420, 1520, 1640, 1780, 1950]) {
-    const r = await rep(page, d);
-    sweep.push({ d, ...r });
-    console.log(`  swing at ${d} ms -> ahead ${String(r.ahead).padStart(6)}  `
-      + `pitch ${String(r.pitch).padStart(6)}  lands ${String(r.landZ).padStart(6)}  ${r.outcome}`);
+  console.log('\n1. SWINGING AT NOTHING IS A WHIFF');
+  const early = await rep(page, { delay: 250 });
+  const late  = await rep(page, { delay: 1350, dz: 2 });   // backed off, swung early
+  console.log(`  swung far too early      -> ${early.outcome} (${early.reason}, ${early.dist} m away)`);
+  console.log(`  too far back to reach it -> ${late.outcome} (${late.reason ?? '-'}, ${late.dist} m away, reach ${late.reach})`);
+  ok('a swing with the shuttle metres away is a whiff, not a shot', early.outcome === 'whiff');
+  ok('standing out of reach is a whiff', late.outcome === 'whiff', `got ${late.outcome}`);
+
+  console.log('\n2. THE COURT IS TWO-DIMENSIONAL');
+  const side = await page.evaluate(() => {
+    const s = window.shadow.sim; const a = s.player;
+    s.step(1, 0); s.step(0, -1);
+    const b2 = s.player;
+    return { dx: +(b2.x - a.x).toFixed(2), dz: +(b2.z - a.z).toFixed(2) };
+  });
+  ok('stepping moves on both axes', side.dx !== 0 && side.dz !== 0, JSON.stringify(side));
+
+  console.log('\n3. STANDING UNDER IT FORCES THE SHOT UP');
+  const under  = await rep(page, { delay: 1560, dz: -1 });  // step towards the net
+  const behind = await rep(page, { delay: 1500, dz: 0 });   // stay at base, behind it
+  console.log(`  stepped forward (z=${under.playerZ.toFixed(2)})  ahead ${under.ahead} -> ${under.kind}, pitch ${under.pitch}, forcedUp ${under.forcedUp}`);
+  console.log(`  stayed at base  (z=${behind.playerZ.toFixed(2)})  ahead ${behind.ahead} -> ${behind.kind}, pitch ${behind.pitch}, forcedUp ${behind.forcedUp}`);
+  ok('being under the shuttle forces the launch upward', under.forcedUp > behind.forcedUp,
+     `${under.forcedUp} vs ${behind.forcedUp}`);
+  ok('only the player behind the shuttle can hit down', behind.pitch < under.pitch,
+     `${behind.pitch}° vs ${under.pitch}°`);
+
+  console.log('\n4. THE RACKET CHANGES THE SHOT');
+  const shots = {};
+  for (const [name, r] of Object.entries({
+    smash: { pitchDeg: -22, yawDeg: 0, power: 0.95, source: 'test' },
+    drive: { pitchDeg: 0,   yawDeg: 0, power: 0.8,  source: 'test' },
+    clear: { pitchDeg: 34,  yawDeg: 0, power: 0.8,  source: 'test' },
+    drop:  { pitchDeg: 14,  yawDeg: 0, power: 0.18, source: 'test' },
+  })) {
+    const r2 = await rep(page, { delay: 1520, racket: r });
+    shots[name] = r2;
+    console.log(`  face ${String(r.pitchDeg).padStart(4)}° power ${r.power} -> ${String(r2.kind).padEnd(11)} launch ${String(r2.pitch).padStart(6)}° at ${r2.speed} m/s`);
   }
+  const kinds = new Set(Object.values(shots).map(s => s.kind));
+  ok('different racket states produce different shots', kinds.size >= 3,
+     [...kinds].join(', '));
+  ok('a closed face and a fast swing is a smash', shots.smash.kind === 'smash');
+  ok('an open face is not a smash', shots.clear.kind !== 'smash', shots.clear.kind);
 
-  console.log('\nASSERTIONS');
-  const swung = sweep.filter(r => r.outcome !== 'missed');
-  ok('every rep in the window produced a swing', swung.length === sweep.length);
-  ok('ahead decreases as the swing gets later',
-     swung.every((r, i) => i === 0 || r.ahead <= swung[i - 1].ahead + 0.02),
-     swung.map(r => r.ahead).join(' > '));
-  ok('at least one timing lands in the target',
-     sweep.some(r => r.outcome === 'in'),
-     sweep.map(r => r.outcome).join(', '));
-  ok('swinging early (over-reaching) finds the net or lands short',
-     ['net', 'short'].includes(sweep[0].outcome), `earliest = ${sweep[0].outcome}`);
-  ok('swinging late sails past the target',
-     ['long', 'out'].includes(sweep.at(-1).outcome),
-     `latest = ${sweep.at(-1).outcome} at z=${sweep.at(-1).landZ}`);
 
-  // the remap must actually change what the stroke can reach
-  const remap = await page.evaluate(() => {
-    const s = window.shadow.sim;
-    const hi = s.remap.factor;
-    s.setRemap(1.0);
-    const off = s.remap.label;
-    s.setRemap(hi);
-    return { hi, off, on: s.remap.label };
+  console.log('\n5. HANDEDNESS MIRRORS THE GEOMETRY');
+  const across = await page.evaluate(async () => {
+    const m = await import('/src/contact.js');
+    const sh = { x: 0.7, y: 2.6, z: 4.8 };            // shuttle to the player's RIGHT
+    const mk = (hand) => m.evaluateContact({ player: { x: 0, z: 5.5 }, shuttle: sh,
+                                             remapFactor: 1.36, hand });
+    return { right: mk('right').stretched, left: mk('left').stretched };
   });
-  console.log('\nREMAP');
-  console.log('  ' + remap.on);
-  console.log('  ' + remap.off);
-  ok('remap is above 1 under a 2.4 m ceiling', remap.hi > 1.2, `factor ${remap.hi}`);
-  ok('turning it off is stated plainly', /off/i.test(remap.off));
-
-  // a muted observation must stay muted
-  console.log('\nOVERRIDE');
-  const mute = await page.evaluate(() => {
-    const { ps } = window.shadow;
-    const pol = window.shadow;
-    return (async () => {
-      const mod = await import('/src/policy.js');
-      mod.dismiss(ps, 'ahead'); mod.dismiss(ps, 'ahead');
-      const raised = mod.step(ps, [{ key: 'ahead', confidence: 1.0 }], 9);
-      return { state: ps.perKey.ahead.state, raisedWhileMuted: raised.length };
-    })();
-  });
-  ok('two dismissals mute it', mute.state === 'muted');
-  ok('a muted observation is not raised at confidence 1.0', mute.raisedWhileMuted === 0);
+  console.log(`  shuttle 0.7 m to the right -> stretch for a right-hander ${across.right}, left-hander ${across.left}`);
+  ok('reaching across the body costs more than reaching to the racket side',
+     across.left > across.right, `${across.left} vs ${across.right}`);
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();

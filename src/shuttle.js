@@ -54,8 +54,8 @@ export function clearedNet(pts, netH = 1.524) {
  * Mild variation so reps are not identical.
  */
 export function feed(rng = Math.random) {
-  const speed = 45 + (rng() - 0.5) * 2.4;
-  const pitchDeg = 50 + (rng() - 0.5) * 2.0;
+  const speed = 42 + (rng() - 0.5) * 2.0;
+  const pitchDeg = 38 + (rng() - 0.5) * 2.0;
   const yawDeg = (rng() - 0.5) * 5.0;
   const pitch = pitchDeg * Math.PI / 180, yaw = yawDeg * Math.PI / 180;
   return {
@@ -63,7 +63,7 @@ export function feed(rng = Math.random) {
     v0: { x: Math.sin(yaw) * speed * Math.cos(pitch),
           y: Math.sin(pitch) * speed,
           z: Math.cos(yaw) * speed * Math.cos(pitch) },
-    arrivesAt: 1.9,     // approx seconds until it reaches the hitting zone
+    arrivesAt: 1.6,     // approx seconds until it falls through the hitting zone
   };
 }
 

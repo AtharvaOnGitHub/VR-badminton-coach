@@ -1,4 +1,5 @@
 import { createSim } from './sim.js';
+import { createRacket } from './racket.js';
 import { observe } from './analysis.js';
 import { newPolicyState, step as policyStep, dismiss, unmute, setGlobalMute,
          THRESHOLDS } from './policy.js';
@@ -9,19 +10,45 @@ const el = (t, c, h) => { const n = document.createElement(t);
   if (c) n.className = c; if (h !== undefined) n.innerHTML = h; return n; };
 
 const ps = newPolicyState();
+
+// The phone. If none is connected the court still plays, with a default swing.
+const racket = createRacket({
+  onSwing: (r) => sim.swing(r),
+  onHand: (h) => { $('#hand-chip').textContent = h + ' handed'; $('#hand-chip').hidden = false; },
+  onCalibrated: (ok) => { const c = $('#cal-chip'); c.hidden = !ok;
+                          c.textContent = 'rest pose set'; },
+  onStatus: (s) => {
+    const chip = $('#racket-chip');
+    chip.textContent = s === 'racket connected' ? 'racket live' : s;
+    chip.className = 'hud hud-tr2 ' + (s === 'racket connected' ? 'live' : 'cold');
+  },
+});
 let blockIndex = 0, shared = false, reviewed = false, notice = null;
 const dismissedThisBlock = new Set();
 
 const sim = createSim($('#c'), {
+  racketAttitude: () => (racket.online ? racket.state : null),
+  racketHand: () => racket.hand,
   onShot: (rep, reps) => {
     $('#shot-count').textContent = reps.length;
     $('#in-count').textContent = reps.filter(r => r.outcome === 'in').length;
     $('#block-line').textContent =
       `Block ${Math.floor(reps.length / BLOCK) + 1} · ${reps.length % BLOCK || (reps.length ? BLOCK : 0)} of ${BLOCK}`;
     const v = $('#verdict');
-    const word = { in: 'IN', long: 'LONG', out: 'OUT', short: 'SHORT', net: 'NET', missed: 'MISSED' }[rep.outcome];
-    v.className = 'hud hud-bc v-' + rep.outcome;
-    v.textContent = rep.outcome === 'missed' ? 'Missed it' : word;
+    if (rep.outcome === 'whiff') {
+      v.className = 'hud hud-bc v-whiff';
+      v.innerHTML = `WHIFF<div class="vsub">you swung, but it was ${rep.reason}
+        — ${rep.dist} m away, you can reach ${rep.reach} m</div>`;
+    } else if (rep.outcome === 'missed') {
+      v.className = 'hud hud-bc v-missed';
+      v.innerHTML = `LET IT GO<div class="vsub">no swing</div>`;
+    } else {
+      const word = { in: 'IN', long: 'LONG', out: 'OUT', short: 'SHORT', net: 'NET' }[rep.outcome];
+      v.className = 'hud hud-bc v-' + rep.outcome;
+      v.innerHTML = `${word}<div class="vsub">${rep.kind}
+        · ${rep.pitchDeg}° off the face at ${rep.speed} m/s${
+        rep.forcedUp > 4 ? ' · you were under it, so it had to go up' : ''}</div>`;
+    }
     v.hidden = false;
     if (reps.length % BLOCK === 0) endBlock(reps);
   },
@@ -46,15 +73,18 @@ function endBlock(reps) {
 /* ---------- input ---------- */
 const feedNext = () => { sim.startRep(); $('#verdict').hidden = true; $('#offer').hidden = true; };
 $('#btn-feed').addEventListener('click', feedNext);
-$('#btn-swing').addEventListener('click', () => sim.swing());
+$('#btn-swing').addEventListener('click', () => sim.swing(racket.fallbackSwing()));
 $('#btn-freeze').addEventListener('click', () => sim.togglePause());
 $('#view-side').addEventListener('change', e => sim.setView(e.target.checked ? 'side' : 'fp'));
 
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
-  if (e.code === 'Space')      { e.preventDefault(); sim.swing(); }
-  if (e.code === 'ArrowLeft')  { e.preventDefault(); sim.step(-1); }
-  if (e.code === 'ArrowRight') { e.preventDefault(); sim.step(1); }
+  if (e.code === 'Space') { e.preventDefault();
+    sim.swing(racket.online ? null : racket.fallbackSwing()); }
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') { e.preventDefault(); sim.step(-1, 0); }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); sim.step(1, 0); }
+  if (e.code === 'ArrowUp'    || e.code === 'KeyW') { e.preventDefault(); sim.step(0, -1); }
+  if (e.code === 'ArrowDown'  || e.code === 'KeyS') { e.preventDefault(); sim.step(0, 1); }
   if (e.code === 'KeyP')       { e.preventDefault(); sim.togglePause(); }
   if (e.code === 'Enter')      { e.preventDefault(); feedNext(); }
 });
@@ -235,6 +265,9 @@ function renderCoach() {
 // exposed so the behaviour can be inspected from the console and by tools/shots.mjs
 window.shadow = { sim, ps, observe };
 
+$('#btn-racket').addEventListener('click', () => racket.connect());
+
 /* boot */
+racket.connect();
 syncRemap();
 feedNext();
