@@ -49,8 +49,44 @@ const hit = (power = 0.6) => {
   Haptics.impactAsync(style).catch(() => {});
 };
 
+const STEPS = ['Connect', 'Hand', 'Grip', 'Start'];
+
+/** The frame every setup page sits in.
+ *
+ *  Defined here and NOT inside App. A component declared inside another is a new
+ *  function on every render, so React treats it as a different type and throws the
+ *  whole subtree away each time. With the sensor re-rendering at 60 Hz that meant
+ *  buttons were destroyed between finger-down and finger-up, and the address field
+ *  could not hold focus. Nothing in the setup pages was pressable. */
+function Chrome({ page, alert, onBack, children }) {
+  return (
+    <View style={s.page}>
+      <StatusBar barStyle="light-content" />
+      <View style={s.crumbs}>
+        {STEPS.map((label, i) => (
+          <View key={label} style={[s.crumb, i === page && s.crumbOn, i < page && s.crumbDone]}>
+            <Text style={[s.crumbTxt, i === page && s.crumbTxtOn]}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      {alert &&
+        <View style={s.alertCard}>
+          <Text style={s.alertTitle}>{alert.title}</Text>
+          <Text style={s.alertBody}>{alert.detail}</Text>
+        </View>}
+      <ScrollView contentContainerStyle={s.pageBody} keyboardShouldPersistTaps="handled">
+        {children}
+      </ScrollView>
+      {onBack &&
+        <Pressable style={s.backBtn} onPress={onBack}>
+          <Text style={s.backTxt}>Back</Text>
+        </Pressable>}
+    </View>
+  );
+}
+
 export default function App() {
-  useKeepAwake();
+  try { useKeepAwake(); } catch {}   // a nicety, and not worth a blank screen
   const [host, setHost] = useState('10.114.198.229');
   const [status, setStatus] = useState('idle');
   const [peak, setPeak] = useState(0);
@@ -64,6 +100,7 @@ export default function App() {
   const [armed, setArmed] = useState(false);       // the drill is running
   const [alert, setAlert] = useState(null);        // { title, detail }
   const [page, setPage] = useState(0);             // 0 connect, 1 hand, 2 grip, 3 ready
+  const [sensorOk, setSensorOk] = useState(true);  // false where there is no motion sensor
 
   const ws = useRef(null);
   const inSwing = useRef(false);
@@ -75,6 +112,7 @@ export default function App() {
   const calRef = useRef(null);   // the listener mounts once, so it cannot read `cal` from state
   const armedRef = useRef(false);
   const sensRef = useRef(SENS.normal);
+  const lastUi = useRef(0);
 
   const send = (msg) => {
     const sock = ws.current;
@@ -124,16 +162,21 @@ export default function App() {
 
   useEffect(() => { sensRef.current = SENS[sens]; }, [sens]);
 
-  useEffect(() => {
-    DeviceMotion.setUpdateInterval(1000 / HZ);
-    sub.current = DeviceMotion.addListener((d) => {
+  const onFrame = (d) => {
       const r = d.rotation || { alpha: 0, beta: 0, gamma: 0 };
       const rr = d.rotationRate || { alpha: 0, beta: 0, gamma: 0 };
       // expo reports rotationRate in deg/s on iOS and rad/s on Android; normalise
       const scale = Math.abs(rr.alpha) > 50 || Math.abs(rr.beta) > 50 ? Math.PI / 180 : 1;
       const wx = (rr.beta || 0) * scale, wy = (rr.gamma || 0) * scale, wz = (rr.alpha || 0) * scale;
       const w = Math.hypot(wx, wy, wz);
-      setLive({ a: r.alpha, b: r.beta, g: r.gamma, w });
+      // The readout is for a human to glance at, so it is redrawn about eight times
+      // a second. Re-rendering on all sixty sensor frames costs the whole tree and
+      // buys nothing the eye can use. Swing detection below still sees every frame.
+      const nowMs = Date.now();
+      if (nowMs - lastUi.current > 120) {
+        lastUi.current = nowMs;
+        setLive({ a: r.alpha, b: r.beta, g: r.gamma, w });
+      }
 
       if (calBuf.current) calBuf.current.push({ a: r.alpha, b: r.beta, g: r.gamma });
 
@@ -170,8 +213,27 @@ export default function App() {
             sock.send(JSON.stringify({ type: 'swing', ...b }));
         }
       }
-    });
-    return () => sub.current?.remove();
+  };
+
+  /* The sensor, guarded.
+   *
+   * Subscribing can throw where there is no motion sensor at all, and an
+   * exception here takes the whole screen down with it: that is how a working
+   * Connect button turns into a blank page. If there is no sensor the app still
+   * runs, says so, and the court can be driven from the keyboard instead. */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let available = true;
+      try { available = await DeviceMotion.isAvailableAsync(); } catch { available = false; }
+      if (cancelled) return;
+      if (!available) { setSensorOk(false); return; }
+      try {
+        DeviceMotion.setUpdateInterval(1000 / HZ);
+        sub.current = DeviceMotion.addListener(onFrame);
+      } catch { setSensorOk(false); }
+    })();
+    return () => { cancelled = true; sub.current?.remove(); };
   }, []);
 
   const startCalibration = () => {
@@ -258,33 +320,9 @@ export default function App() {
    * say which hand, set the grip, then start. The last page is deliberately almost
    * empty, because by then the player is standing up with the phone in their hand
    * and should be looking at the court rather than reading. */
-  const steps = ['Connect', 'Hand', 'Grip', 'Start'];
-  const Chrome = ({ children, back }) => (
-    <View style={s.page}>
-      <StatusBar barStyle="light-content" />
-      <View style={s.crumbs}>
-        {steps.map((label, i) => (
-          <View key={label} style={[s.crumb, i === page && s.crumbOn, i < page && s.crumbDone]}>
-            <Text style={[s.crumbTxt, i === page && s.crumbTxtOn]}>{label}</Text>
-          </View>
-        ))}
-      </View>
-      {alert &&
-        <View style={s.alertCard}>
-          <Text style={s.alertTitle}>{alert.title}</Text>
-          <Text style={s.alertBody}>{alert.detail}</Text>
-        </View>}
-      <ScrollView contentContainerStyle={s.pageBody}>{children}</ScrollView>
-      {back !== false &&
-        <Pressable style={s.backBtn} onPress={() => { tick(); setPage(Math.max(0, page - 1)); }}>
-          <Text style={s.backTxt}>Back</Text>
-        </Pressable>}
-    </View>
-  );
-
   /* ---- 1. connect ---- */
   if (page === 0) return (
-    <Chrome back={false}>
+    <Chrome page={page} alert={alert}>
       <Text style={s.h1}>Shadow Racket</Text>
       <Text style={s.sub}>This phone is the racket. First, point it at the court.</Text>
 
@@ -304,12 +342,17 @@ export default function App() {
         The court page shows this address next to its QR code. Everything stays on
         your own network; nothing is sent anywhere else.
       </Text>
+      {!sensorOk &&
+        <Text style={s.warnNote}>
+          This device reports no motion sensor, so it cannot act as a racket. The
+          court will still play from the keyboard.
+        </Text>}
     </Chrome>
   );
 
   /* ---- 2. hand ---- */
   if (page === 1) return (
-    <Chrome>
+    <Chrome page={page} alert={alert} onBack={() => { tick(); setPage(page - 1); }}>
       <Text style={s.h1}>Which hand?</Text>
       <Text style={s.sub}>This mirrors your hitting shoulder, the racket you see on
         court, and what it costs you to reach across your body.</Text>
@@ -328,7 +371,7 @@ export default function App() {
 
   /* ---- 3. grip and rest pose ---- */
   if (page === 2) return (
-    <Chrome>
+    <Chrome page={page} alert={alert} onBack={() => { tick(); setPage(page - 1); }}>
       <Text style={s.h1}>Your grip</Text>
       <Text style={s.sub}>Hold the phone the way the picture shows, then stand still
         and tap. Everything the court reads is measured from this one pose.</Text>
@@ -533,6 +576,7 @@ const s = StyleSheet.create({
   handBig: { flex: 1, paddingVertical: 34, borderRadius: 12, backgroundColor: '#18222a',
              borderWidth: 1, borderColor: '#243039', alignItems: 'center' },
   em: { color: '#cfd8e2', fontWeight: '700' },
+  warnNote: { color: '#e0a040', fontSize: 12, lineHeight: 18, marginTop: 14 },
 
   /* the start page: one thing on it */
   readyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
