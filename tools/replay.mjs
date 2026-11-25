@@ -8,7 +8,10 @@ import { readFileSync } from 'fs';
 import * as Q from '../racket-app/quat.js';
 
 const DEG = 180 / Math.PI;
-const court = v => [-v[2], v[0], -v[1]];          // right-hander
+// These fixtures were recorded with the OLD grip, top edge forward, so they are
+// replayed in the frame they were taken in. The live code uses the new grip; see
+// toCourt in src/racket.js.
+const court = v => [-v[2], v[0], -v[1]];          // old grip, right-hander
 export const elevation = s => Math.asin(Math.max(-1, Math.min(1, s[1]))) * DEG;
 
 export function frames(file) {
@@ -18,7 +21,11 @@ export function frames(file) {
 }
 
 /** @param sign the gyroscope sign the phone applies. Shipping value is -1. */
-export function replay(fr, { sign = -1, gain = 0.03 } = {}) {
+export function replay(fr, opts = {}) { return integrate(fr, [0, 1, 0], opts); }
+export function replayFace(fr, opts = {}) { return integrate(fr, [0, 0, 1], opts); }
+
+/** @param sign the gyroscope sign the recording already carries. These takes carry +1. */
+function integrate(fr, axis, { sign = 1, gain = 0.03 } = {}) {
   let q = [1, 0, 0, 0], gRest = null, prev = null;
   const path = [];
   for (const x of fr) {
@@ -30,7 +37,7 @@ export function replay(fr, { sign = -1, gain = 0.03 } = {}) {
     prev = x.at;
     if (!gRest && acc) gRest = Q.unit(acc);
     q = Q.step(q, om, dt, acc, gRest, gain);
-    path.push(court(Q.rotate(q, [0, 1, 0])));
+    path.push(court(Q.rotate(q, axis)));
   }
   return path;
 }

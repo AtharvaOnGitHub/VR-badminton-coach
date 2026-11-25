@@ -11,8 +11,9 @@ let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { console.log(`${c ? '  PASS' : '  FAIL'}  ${n}${x ? '  — ' + x : ''}`); c ? pass++ : fail++; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// court direction -> the device-frame vector that maps onto it (right-hander)
-const fromCourt = ([x, y, z]) => [y, -z, -x];
+// court direction -> the device-frame vector that maps onto it, for the grip in
+// src/racket.js: court = (v.z, -v.y, v.x) for a right-hander
+const fromCourt = ([x, y, z]) => [z, -y, x];
 // shortest rotation taking `a` onto `b`, as [w,x,y,z]
 const between = (a, b) => {
   const d = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];

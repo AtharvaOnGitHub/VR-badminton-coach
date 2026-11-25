@@ -27,54 +27,53 @@ export const TESTS = [
   {
     id: 'wrist-roll',
     name: 'Wrist roll',
-    say: 'Arm still, hanging as it was for calibration. Roll your wrist so the face '
-       + 'turns up, back to flat, then down, then flat again.',
+    say: 'Arm hanging as it was for calibration. Roll your wrist so the face turns '
+       + 'forward, back, and forward again. The racket head should stay pointing at '
+       + 'the floor the whole time.',
     track: 'face',
     hold: 'shaft',                       // what should NOT move
     points: [
-      { label: 'face up',    dir: U(0, 1, 0) },
-      { label: 'flat again', dir: U(-1, 0, 0) },
-      { label: 'face down',  dir: U(0, -1, 0) },
-      { label: 'back flat',  dir: U(-1, 0, 0) },
-    ],
-  },
-  {
-    id: 'wrist-yaw',
-    name: 'Wrist yaw',
-    say: 'Arm still. Point the racket head left, back to the middle, then right, '
-       + 'then back to the middle. Keep it level.',
-    track: 'shaft',
-    points: [
-      { label: 'point left',  dir: U(-0.6, 0, -0.8) },
-      { label: 'middle',      dir: U(0, 0, -1) },
-      { label: 'point right', dir: U(0.6, 0, -0.8) },
-      { label: 'middle',      dir: U(0, 0, -1) },
+      { label: 'face forward', dir: U(0, 0, -1) },
+      { label: 'back to flat', dir: U(1, 0, 0) },
+      { label: 'face behind',  dir: U(0, 0, 1) },
+      { label: 'flat again',   dir: U(1, 0, 0) },
     ],
   },
   {
     id: 'lateral-raise',
     name: 'Lateral raise',
-    say: 'Wrist locked to the arm. Raise your whole arm out to your racket side, up '
-       + 'overhead, across to the other side, then let it fall back to rest.',
+    say: 'Wrist locked to the arm. Raise your whole arm out to your racket side until '
+       + 'it is level, carry on up overhead, then let it fall back down.',
     track: 'shaft',
     points: [
-      { label: 'out to the side', dir: U(0.9, 0.45, 0) },
-      { label: 'overhead',        dir: U(0, 1, 0) },
-      { label: 'across the body', dir: U(-0.9, 0.45, 0) },
-      { label: 'back to rest',    dir: U(0, 0, -1) },
+      { label: 'out to the side, level', dir: U(1, 0, 0) },
+      { label: 'overhead',               dir: U(0, 1, 0) },
+      { label: 'back down to rest',      dir: U(0, -1, 0) },
     ],
   },
   {
     id: 'front-raise',
-    name: 'Front and back raise',
-    say: 'Wrist locked to the arm. Raise your arm straight out in front, up overhead, '
-       + 'carry on behind you as far as is comfortable, then return to rest.',
+    name: 'Front raise',
+    say: 'Wrist locked to the arm. Raise your arm straight out in front until it is '
+       + 'level, carry on up overhead, then let it fall back down.',
     track: 'shaft',
     points: [
-      { label: 'out in front', dir: U(0, 0.5, -0.87) },
-      { label: 'overhead',     dir: U(0, 1, 0) },
-      { label: 'behind you',   dir: U(0, 0.6, 0.8) },
-      { label: 'back to rest', dir: U(0, 0, -1) },
+      { label: 'out in front, level', dir: U(0, 0, -1) },
+      { label: 'overhead',            dir: U(0, 1, 0) },
+      { label: 'back down to rest',   dir: U(0, -1, 0) },
+    ],
+  },
+  {
+    id: 'wrist-yaw',
+    name: 'Wrist yaw',
+    say: 'Arm hanging still. Keeping the racket head low, swing it forward and back '
+       + 'from the wrist alone, like a short pendulum.',
+    track: 'shaft',
+    points: [
+      { label: 'head forward', dir: U(0, -0.8, -0.6) },
+      { label: 'hanging',      dir: U(0, -1, 0) },
+      { label: 'head behind',  dir: U(0, -0.8, 0.6) },
+      { label: 'hanging',      dir: U(0, -1, 0) },
     ],
   },
 ];
@@ -177,7 +176,7 @@ export function createBench({ sim, racket, $ }) {
       run.since = 0;
     }
 
-    const held = t.hold === 'shaft' ? ANG(shaft, sim.checkpointDir([0, 0, -1])) : null;
+    const held = t.hold === 'shaft' ? ANG(shaft, sim.checkpointDir([0, -1, 0])) : null;
     el.say.textContent = `${t.say}\n\nNow: ${pt.label} — ${off.toFixed(0)}° away`
       + (held !== null && held > 45 ? `  (your arm has moved ${held.toFixed(0)}°, keep it still)` : '');
 

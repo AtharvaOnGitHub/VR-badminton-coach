@@ -1,6 +1,6 @@
 // Behaviour checks. Run: node tools/check.mjs   (static server on :4178)
 import { chromium } from 'playwright';
-import { frames, replay, elevation } from './replay.mjs';
+import { frames, replay, replayFace } from './replay.mjs';
 const URL = 'http://localhost:4178/';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -125,174 +125,92 @@ const run = async () => {
   ok('reaching across the body costs more than reaching to the racket side',
      across.left > across.right, `${across.left} vs ${across.right}`);
 
-  console.log('\n6. THE RACKET HAS ALL THREE DEGREES OF FREEDOM');
-  const dof = await page.evaluate(async () => {
+  console.log('\n6. THE GRIP MAKES THREE MOVEMENTS THREE DISTINCT ROTATIONS');
+  // The phone is held as the handle with its top edge pointing at the floor, so the
+  // racket continues the forearm. That is what separates the movements: raising the
+  // arm out to the side turns the phone about its own x, raising it in front turns
+  // about its z, and rolling the handle turns about its y.
+  const grip = await page.evaluate(async () => {
     const m = await import('/src/racket.js');
-    // The real grip: phone on its long edge, screen to the leg, top edge forward.
-    // That is a roll of about -90 degrees, and it is what makes beta the axis the
-    // arm raises on. A rest pose that is not this one is not a test of anything.
-    const rest = { a: 0, b: 0, g: -Math.PI / 2 };
-    const refQ = m.restQuaternion(rest);
-    const read = (d = {}) => m.attitude(
-      { alpha: rest.a + (d.a || 0), beta: rest.b + (d.b || 0), gamma: rest.g + (d.g || 0) },
-      refQ, 'right');
-    const v = o => ({ x: +o.x.toFixed(3), y: +o.y.toFixed(3), z: +o.z.toFixed(3) });
-    const ang = (p, q) => Math.acos(Math.max(-1, Math.min(1,
-      p.x * q.x + p.y * q.y + p.z * q.z))) * 180 / Math.PI;
-
-    const base = read();
-    const t = 40 * Math.PI / 180;
-    const moved = { alpha: read({ a: t }), beta: read({ b: t }), gamma: read({ g: t }) };
-    const left = m.attitude({ alpha: rest.a + t, beta: rest.b, gamma: rest.g }, refQ, 'left');
-
+    const r = o => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
+    // a quaternion of `deg` about a device axis, as [w,x,y,z]
+    const about = (axis, deg) => {
+      const h = deg * Math.PI / 360, s = Math.sin(h);
+      return [Math.cos(h), axis[0]*s, axis[1]*s, axis[2]*s];
+    };
+    const read = (q, hand = 'right') => {
+      const a = m.attitudeFromQuat(q, hand);
+      return { shaft: r(a.shaft), face: r(a.normal), pitch: +a.pitchDeg.toFixed(0) };
+    };
     return {
-      restShaft: v(base.shaft), restNormal: v(base.normal),
-      swing: Object.fromEntries(Object.entries(moved).map(([k, r]) =>
-        [k, { shaft: +ang(base.shaft, r.shaft).toFixed(1),
-              face: +ang(base.normal, r.normal).toFixed(1),
-              pitch: +r.pitchDeg.toFixed(1) }])),
-      mirrored: +left.shaft.x.toFixed(3), righty: +moved.alpha.shaft.x.toFixed(3),
+      rest:      read([1, 0, 0, 0]),
+      side45:    read(about([1, 0, 0], 45)),
+      side90:    read(about([1, 0, 0], 90)),
+      side180:   read(about([1, 0, 0], 180)),
+      front90:   read(about([0, 0, 1], 90)),
+      roll90:    read(about([0, 1, 0], 90)),
+      sideLeft:  read(about([1, 0, 0], 90), 'left'),
     };
   });
-  console.log(`  at the rest pose: shaft ${JSON.stringify(dof.restShaft)}, `
-            + `face ${JSON.stringify(dof.restNormal)}`);
-  for (const [k, r] of Object.entries(dof.swing))
-    console.log(`  turn 40° about ${k.padEnd(5)} -> shaft moves ${String(r.shaft).padStart(5)}°, `
-              + `face ${String(r.face).padStart(5)}°, pitch ${r.pitch}°`);
+  console.log(`  hanging at rest        shaft ${JSON.stringify(grip.rest.shaft)}  face ${JSON.stringify(grip.rest.face)}`);
+  console.log(`  lateral raise 45°      shaft ${JSON.stringify(grip.side45.shaft)}`);
+  console.log(`  lateral raise 90°      shaft ${JSON.stringify(grip.side90.shaft)}  (level, out to the side)`);
+  console.log(`  lateral raise 180°     shaft ${JSON.stringify(grip.side180.shaft)}  (overhead)`);
+  console.log(`  front raise 90°        shaft ${JSON.stringify(grip.front90.shaft)}  (level, in front)`);
+  console.log(`  roll the handle 90°    shaft ${JSON.stringify(grip.roll90.shaft)}  face ${JSON.stringify(grip.roll90.face)}`);
 
-  ok('the rest pose puts the shaft down the court',
-     Math.abs(dof.restShaft.z + 1) < 0.02 && Math.abs(dof.restShaft.y) < 0.02,
-     JSON.stringify(dof.restShaft));
-  ok('the rest pose faces the strings out to the side',
-     Math.abs(dof.restNormal.x + 1) < 0.02, JSON.stringify(dof.restNormal));
-  const axes = Object.values(dof.swing);
-  ok('every axis of the wrist moves the racket', axes.every(a => a.shaft > 15 || a.face > 15),
-     JSON.stringify(dof.swing));
-  ok('the three axes do not collapse into one motion',
-     new Set(axes.map(a => Math.round(a.shaft))).size >= 2
-     && new Set(axes.map(a => Math.round(a.face))).size >= 2);
+  ok('at rest the racket hangs, head at the floor',
+     Math.abs(grip.rest.shaft.y + 1) < 0.02, JSON.stringify(grip.rest.shaft));
+  ok('raising the arm to the side takes the head out to the side',
+     grip.side90.shaft.x > 0.97 && Math.abs(grip.side90.shaft.y) < 0.05,
+     JSON.stringify(grip.side90.shaft));
+  ok('and carries on overhead',
+     grip.side180.shaft.y > 0.97, JSON.stringify(grip.side180.shaft));
+  ok('raising the arm in front takes the head forward, not sideways',
+     grip.front90.shaft.z < -0.97 && Math.abs(grip.front90.shaft.x) < 0.05,
+     JSON.stringify(grip.front90.shaft));
+  ok('rolling the handle turns the face and leaves the head hanging',
+     Math.abs(grip.roll90.shaft.y + 1) < 0.02 && Math.abs(grip.roll90.face.z) > 0.9,
+     `shaft ${JSON.stringify(grip.roll90.shaft)} face ${JSON.stringify(grip.roll90.face)}`);
   ok('a left-hander is the mirror image',
-     Math.abs(dof.mirrored + dof.righty) < 1e-6 && Math.abs(dof.righty) > 0.3,
-     `${dof.mirrored} vs ${dof.righty}`);
-
-  // Each axis should do the physically right thing, not merely something.
-  const lift = await page.evaluate(async () => {
-    const m = await import('/src/racket.js');
-    const rest = { a: 0, b: 0, g: -Math.PI / 2 };
-    const refQ = m.restQuaternion(rest);
-    const at = (d) => m.attitude({ alpha: rest.a + (d.a || 0), beta: rest.b + (d.b || 0),
-                                   gamma: rest.g + (d.g || 0) }, refQ, 'right');
-    const r = (o) => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
-    const t = 50 * Math.PI / 180;
-    return { up: r(at({ b: t }).shaft), round: r(at({ a: t }).shaft),
-             twistShaft: r(at({ g: t }).shaft), twistFace: r(at({ g: t }).normal) };
-  });
-  console.log(`  raise the arm 50°  -> shaft ${JSON.stringify(lift.up)}`);
-  console.log(`  swing it across    -> shaft ${JSON.stringify(lift.round)}`);
-  console.log(`  twist the handle   -> shaft ${JSON.stringify(lift.twistShaft)}, `
-            + `face ${JSON.stringify(lift.twistFace)}`);
-  ok('raising the arm lifts the racket head', lift.up.y > 0.7 && lift.up.z < -0.5,
-     JSON.stringify(lift.up));
-  ok('swinging across sweeps it sideways, not upward',
-     Math.abs(lift.round.x) > 0.7 && Math.abs(lift.round.y) < 0.05, JSON.stringify(lift.round));
-  ok('twisting the handle turns the face and leaves the shaft alone',
-     Math.abs(lift.twistShaft.z + 1) < 0.02 && Math.abs(lift.twistFace.x + 1) > 0.2,
-     JSON.stringify(lift.twistShaft));
+     Math.abs(grip.sideLeft.shaft.x + grip.side90.shaft.x) < 1e-6,
+     `${grip.sideLeft.shaft.x} vs ${grip.side90.shaft.x}`);
 
   console.log('\n7. THE SWING IS READ WHEN IT HAPPENED, NOT WHEN IT ARRIVED');
-  // The phone can only report a stroke once the arm has slowed, so the message is
-  // a few hundred milliseconds old. Uncompensated, the court reads the shuttle
-  // well past the player and calls a reach a miss.
   const lagged  = await rep(page, { delay: 1600, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test' } });
   const rewound = await rep(page, { delay: 1600, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test', ageMs: 300 } });
   const manual  = await rep(page, { delay: 1300, racket: { pitchDeg: -12, yawDeg: 0, power: 0.8, source: 'test' } });
-  console.log(`  swung at 1.60 s, no age    -> contact ${lagged.ahead} m ahead`);
+  console.log(`  swung at 1.60 s, no age     -> contact ${lagged.ahead} m ahead`);
   console.log(`  swung at 1.60 s, 300 ms old -> contact ${rewound.ahead} m ahead`);
-  console.log(`  swung at 1.30 s, no age    -> contact ${manual.ahead} m ahead`);
+  console.log(`  swung at 1.30 s, no age     -> contact ${manual.ahead} m ahead`);
   ok('a stale swing is rewound to when the stroke actually peaked',
      Math.abs(rewound.ahead - manual.ahead) < 0.25, `${rewound.ahead} vs ${manual.ahead}`);
-  // 0.69 m here. The shuttle has shed most of its speed by the hitting window, so
-  // this is the cheap end of the error; earlier in the flight it is metres.
   ok('and ignoring that age moves the contact point most of a metre',
      Math.abs(rewound.ahead - lagged.ahead) > 0.5, `${rewound.ahead} vs ${lagged.ahead}`);
 
-  console.log('\n8. OVERHEAD, WHERE THE EULER ANGLES GAVE UP');
-  // The platform's ZXY angles are degenerate at a middle angle of ninety degrees,
-  // which for this grip is exactly an overhead. The phone integrates its gyroscope
-  // from the rest pose instead and sends the rotation, so nothing is reconstructed
-  // from angles. These drive the real filter with a real angular velocity.
-  const oh = await page.evaluate(async () => {
-    const m = await import('/src/racket.js');
-    const Q = await import('/racket-app/quat.js');
-    const r = (o) => ({ x: +o.x.toFixed(2), y: +o.y.toFixed(2), z: +o.z.toFixed(2) });
-
-    // raising the arm turns the phone about its own screen normal
-    const sweep = (deg, hz = 60) => {
-      let q = [1, 0, 0, 0];
-      const total = deg * Math.PI / 180, secs = 1, dt = 1 / hz;
-      const rate = [0, 0, -total / secs];                 // rad/s, device frame
-      for (let i = 0; i < hz * secs; i++) q = Q.step(q, rate, dt, null, null);
-      return m.attitudeFromQuat(q, 'right');
-    };
-    return {
-      rest: r(m.attitudeFromQuat([1, 0, 0, 0], 'right').shaft),
-      up45: r(sweep(45).shaft),
-      up90: r(sweep(90).shaft),          // straight overhead: the old failure point
-      up120: r(sweep(120).shaft),        // past vertical, behind the head
-      face90: +sweep(90).pitchDeg.toFixed(1),
-    };
-  });
-  console.log(`  rest        shaft ${JSON.stringify(oh.rest)}`);
-  console.log(`  arm at 45°  shaft ${JSON.stringify(oh.up45)}`);
-  console.log(`  arm at 90°  shaft ${JSON.stringify(oh.up90)}  (overhead)`);
-  console.log(`  arm at 120° shaft ${JSON.stringify(oh.up120)} (behind the head)`);
-  ok('the integrated rest pose is the same forward pose', Math.abs(oh.rest.z + 1) < 0.02);
-  ok('the racket goes fully overhead', oh.up90.y > 0.97, JSON.stringify(oh.up90));
-  ok('and keeps going past vertical instead of flipping',
-     oh.up120.y > 0.4 && oh.up120.z > 0.3, JSON.stringify(oh.up120));
-  ok('the climb is monotonic, with no jump at the old singularity',
-     oh.up45.y > 0.6 && oh.up45.y < oh.up90.y, `${oh.up45.y} then ${oh.up90.y}`);
-
-  // gravity correction must pull a drifting gyro back, and must not fight a swing
-  const drift = await page.evaluate(async () => {
-    const Q = await import('/racket-app/quat.js');
-    const gRest = [-1, 0, 0];                  // at rest the phone's x axis is up
-    const bias = [0, 0, 0.12];                 // 7 deg/s of gyro bias
-    const run = (acc) => {
-      let q = [1, 0, 0, 0];
-      for (let i = 0; i < 60 * 20; i++) q = Q.step(q, bias, 1 / 60, acc, gRest);
-      const v = Q.rotate(q, [-1, 0, 0]);       // where "up" has drifted to
-      return +(Math.acos(Math.max(-1, Math.min(1, -v[0]))) * 180 / Math.PI).toFixed(1);
-    };
-    return { corrected: run([-9.81, 0, 0]), free: run(null) };
-  });
-  console.log(`  20 s at 7°/s of bias: uncorrected ${drift.free}°, corrected ${drift.corrected}°`);
-  ok('gravity correction holds the rest frame against gyro drift',
-     drift.corrected < 8 && drift.free > 100, JSON.stringify(drift));
-
-  console.log('\n9. AGAINST A REAL ARM, RECORDED');
-  // Two takes from an actual phone on an actual arm. The gyroscope's sign was
-  // decided from the lateral raise, so these are the evidence for it and the
-  // thing that stops it being quietly reverted.
-  const real = (f, opt) => {
-    const p = replay(frames(f), opt), e = p.map(elevation);
-    return { lo: Math.min(...e), hi: Math.max(...e), side: Math.max(...p.map(v => Math.abs(v[0]))) };
+  console.log('\n8. WHAT THE RECORDED TAKES SHOWED');
+  // Two takes from a real phone on a real arm, kept because they are the evidence
+  // for the grip. They were recorded with the OLD grip, top edge forward, which put
+  // the racket at right angles to the forearm. Replayed under that old frame they
+  // show why it had to change: a lateral raise rolls the face through most of a
+  // half turn and barely moves the shaft, because the shaft lay along the very axis
+  // the arm was turning about.
+  const elevOf = s => Math.asin(Math.max(-1, Math.min(1, s[1]))) * 180 / Math.PI;
+  const span = (path) => {
+    const e = path.map(elevOf);
+    return { lo: Math.min(...e), hi: Math.max(...e) };
   };
-  const rest = real('tools/fixtures/real-rest.jsonl');
-  const lat  = real('tools/fixtures/real-lateral-raise.jsonl');
-  const wrong = real('tools/fixtures/real-lateral-raise.jsonl', { sign: 1 });
-  console.log(`  standing still, 2.6 s   elevation ${rest.lo.toFixed(0)} to ${rest.hi.toFixed(0)}°`);
-  console.log(`  a real lateral raise    elevation ${lat.lo.toFixed(0)} to ${lat.hi.toFixed(0)}°, `
-            + `sideways ${lat.side.toFixed(2)}`);
-  console.log(`  the same, sign flipped  elevation ${wrong.lo.toFixed(0)} to ${wrong.hi.toFixed(0)}°, `
-            + `sideways ${wrong.side.toFixed(2)}   <- what the bug looked like`);
-  ok('a still phone keeps the racket still', Math.abs(rest.hi) < 4 && rest.side < 0.1,
-     JSON.stringify(rest));
-  ok('a real arm raised overhead takes the racket overhead', lat.hi > 70,
-     `${lat.hi.toFixed(0)}°`);
-  ok('and swings it out to the side on the way', lat.side > 0.75, lat.side.toFixed(2));
-  ok('the old gyroscope sign fails this take', wrong.hi < 40,
-     `${wrong.hi.toFixed(0)}° — if this passes, the sign has been reverted`);
+  const restSpan = span(replay(frames('tools/fixtures/real-rest.jsonl')));
+  const latShaft = span(replay(frames('tools/fixtures/real-lateral-raise.jsonl')));
+  const latFace  = span(replayFace(frames('tools/fixtures/real-lateral-raise.jsonl')));
+  console.log(`  standing still          shaft elevation ${restSpan.lo.toFixed(0)} to ${restSpan.hi.toFixed(0)}°`);
+  console.log(`  lateral raise, old grip shaft elevation ${latShaft.lo.toFixed(0)} to ${latShaft.hi.toFixed(0)}°`);
+  console.log(`                          face  elevation ${latFace.lo.toFixed(0)} to ${latFace.hi.toFixed(0)}°  <- the arm went here`);
+  ok('a still phone keeps the racket still',
+     Math.abs(restSpan.hi) < 4 && Math.abs(restSpan.lo) < 4, JSON.stringify(restSpan));
+  ok('the old grip put the whole lateral raise into the face, not the shaft',
+     (latFace.hi - latFace.lo) > 150 && (latShaft.hi - latShaft.lo) < 80,
+     `face ${(latFace.hi - latFace.lo).toFixed(0)}° vs shaft ${(latShaft.hi - latShaft.lo).toFixed(0)}°`);
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   await b.close();

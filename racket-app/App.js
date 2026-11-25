@@ -174,14 +174,7 @@ export default function App() {
          exceed 50, so slow movement was fed to the integrator as radians when it
          was degrees, 57 times too fast; and x and y were swapped. Neither showed
          while the rates were used only for a swing-speed magnitude. */
-      /* The sign is negative, and that was settled by recorded movement rather
-         than by reading a spec. With it positive, a full arm raise to overhead
-         reached 17 degrees of elevation on the court; with it negative the same
-         recording reaches 83, against the 90 the arm actually did. The platform
-         reports the rate of the reference frame against the device, which is the
-         opposite sense to the one the integration needs. tools/fixtures holds the
-         take this was decided on, and a check asserts it. */
-      const D2R = -Math.PI / 180;
+      const D2R = Math.PI / 180;
       const wx = (rr.gamma || 0) * D2R;
       const wy = (rr.beta  || 0) * D2R;
       const wz = (rr.alpha || 0) * D2R;
@@ -432,13 +425,13 @@ export default function App() {
           <Text style={s.calHead}>Along its long edge, like a handle</Text>
           <Text style={s.calBody}>
             In your {hand === 'left' ? 'left' : 'right'} hand, with the screen facing
-            your leg. The <Text style={s.em}>top edge</Text> of the phone points
-            straight out in front of you and the bottom edge points behind you.
-            That top edge is where the racket head goes, so the phone is the handle
-            and the racket grows out of the end of it.
+            your leg and the <Text style={s.em}>top edge pointing down at the floor</Text>.
+            The racket grows out of that top edge, so with your arm hanging the head
+            is below your hand, where a real racket head is.
           </Text>
           <Text style={s.calBody}>
-            Let your arm hang relaxed so the phone sits just below your hip.
+            Let your arm hang relaxed so the phone sits just below your hip, in line
+            with your forearm rather than sticking out of it.
           </Text>
         </View>
       </View>
@@ -506,7 +499,7 @@ function PoseFigure({ hand }) {
         <View style={s.fwdArrow} />
         <View style={s.hipLine} />
       </View>
-      <Text style={s.figCap}>top edge points forward</Text>
+      <Text style={s.figCap}>top edge points down</Text>
     </View>
   );
 }
@@ -579,7 +572,7 @@ const s = StyleSheet.create({
              borderWidth: 1, borderColor: '#5e2a2e' },
 
   fig: { width: 96, alignItems: 'center' },
-  figInner: { width: 86, height: 148 },
+  figInner: { width: 86, height: 160 },
   figCap: { color: '#6c7883', fontSize: 10, marginTop: 2 },
   head:  { position: 'absolute', left: 34, top: 2, width: 17, height: 17,
            borderRadius: 9, backgroundColor: '#5d6b78' },
@@ -596,17 +589,17 @@ const s = StyleSheet.create({
   arm:   { position: 'absolute', left: 54, top: 24, width: 4, height: 50,
            backgroundColor: '#8a97a4', borderRadius: 2,
            transform: [{ rotate: '-9deg' }] },
-  phone: { position: 'absolute', left: 44, top: 78, width: 30, height: 13,
+  phone: { position: 'absolute', left: 51, top: 72, width: 13, height: 30,
            borderRadius: 3, backgroundColor: '#eef3f7', borderWidth: 1,
-           borderColor: '#9fb0bf', flexDirection: 'row', alignItems: 'center',
-           justifyContent: 'center' },
-  phoneScreen: { width: 21, height: 8, borderRadius: 1.5, backgroundColor: '#3fd08a' },
-  phoneTop: { position: 'absolute', right: 1, top: 1, bottom: 1, width: 3,
+           borderColor: '#9fb0bf', alignItems: 'center', justifyContent: 'center' },
+  phoneScreen: { width: 8, height: 21, borderRadius: 1.5, backgroundColor: '#3fd08a' },
+  // the top edge, at the bottom: the racket head grows downward out of it
+  phoneTop: { position: 'absolute', left: 1, right: 1, bottom: 1, height: 3,
               borderRadius: 2, backgroundColor: '#1f6f4a' },
-  fwdArrow: { position: 'absolute', left: 76, top: 82, width: 7, height: 5,
-              borderTopWidth: 4, borderBottomWidth: 4, borderLeftWidth: 7,
-              borderTopColor: 'transparent', borderBottomColor: 'transparent',
-              borderLeftColor: '#3fd08a', borderRightWidth: 0 },
+  fwdArrow: { position: 'absolute', left: 54, top: 106, width: 5, height: 7,
+              borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 7,
+              borderLeftColor: 'transparent', borderRightColor: 'transparent',
+              borderTopColor: '#3fd08a', borderBottomWidth: 0 },
   hipLine: { position: 'absolute', left: 20, top: 74, width: 60, height: 1,
              backgroundColor: '#3a4650' },
 

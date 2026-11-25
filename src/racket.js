@@ -40,13 +40,24 @@ export const restQuaternion = (ref) =>
 
 /* The rest pose frame, in court axes.
  *
- * At rest the phone's top edge points down the court, the screen faces the player's
- * leg, and so the phone's own x axis points at the ceiling. Those three facts are
- * the whole mapping. A left-hander holds the mirror image, so the frame mirrors
- * with them.                                                                      */
+ * At rest the arm hangs and the phone's top edge points at the FLOOR, with the
+ * screen facing the leg. So the phone's own y axis is down the court's vertical,
+ * its z axis points away from the body, and its x axis points behind the player.
+ *
+ * This grip matters more than it looks. An earlier version asked for the top edge
+ * pointing forward, which puts the racket at right angles to the forearm. A racket
+ * held that way cannot be raised: lifting the arm out to the side is a rotation
+ * about the court's forward axis, and the shaft already lies along that axis, so
+ * it does not move at all. Recorded takes showed exactly that, the face rolling
+ * through 175 degrees while the shaft stayed put. Pointing the phone down the
+ * forearm, as a real racket does, makes the three movements three distinct
+ * rotations: raising out to the side turns about the phone's x, raising in front
+ * turns about its z, and rolling the handle turns about its y.
+ *
+ * A left-hander holds the mirror image, so the frame mirrors with them.           */
 const toCourt = (v, hand, out) => hand === 'left'
-  ? out.set( v.z, -v.x, -v.y)
-  : out.set(-v.z,  v.x, -v.y);
+  ? out.set(-v.z, -v.y, -v.x)
+  : out.set( v.z, -v.y,  v.x);
 
 /**
  * Phone attitude -> a complete racket orientation in court axes.
@@ -104,8 +115,8 @@ export function createRacket({ onSwing, onStatus, onHand, onCalibrated,
   let hand = 'right';
   const state = {
     pitchDeg: 0, yawDeg: 0, w: 0, g: null, lastFrame: 0,
-    shaft:  new THREE.Vector3(0, 0, -1),    // racket shaft direction, court axes
-    normal: new THREE.Vector3(-1, 0, 0),    // racket face normal, court axes
+    shaft:  new THREE.Vector3(0, -1, 0),    // racket shaft: at rest it hangs
+    normal: new THREE.Vector3(1, 0, 0),     // racket face: at rest it faces out
   };
 
   const readAttitude = (m) => {
