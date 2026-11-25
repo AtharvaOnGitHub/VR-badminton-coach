@@ -7,12 +7,19 @@ Week 5 distinguishes a **workflow**, where code fixes the order of steps, from a
 order is fixed in code and never chosen by a model:
 
 ```
-swing recorded → window closed at block boundary → descriptive stats computed
-   → confidence scored against the player's own baseline
-   → policy state machine stepped (hysteresis)
-   → raise / hold / stay silent
-   → player pulls review (always available, never gated)
+feed → contact extracted (how far in front of the head) → shuttle flight integrated
+   → landing and verdict shown IMMEDIATELY, every rep, gated by nothing
+                                   │
+   block boundary ────────────────▶ misses compared against the player's own
+                                    reps that landed → confidence scored
+                                    → policy state machine (hysteresis)
+                                    → offer one line / stay quiet
+                                   │
+   player asks, at any time ──────▶ review (never gated by the policy)
 ```
+
+The two paths are deliberately separate. The task path never waits for anything; only
+the coaching path is subject to the policy.
 
 ### The case against this choice
 

@@ -1,12 +1,16 @@
-# Shadow — badminton shadow practice that waits to be asked
+# Shadow — badminton drills at home, where the shuttle always flies
 
-**README prose word count: ~1,020** (headings and setup commands excluded)
+**README prose word count: ~1,150** (headings and setup commands excluded)
 
-An XR practice tool for badminton shadow swings in which **the player decides when
-the system speaks**. It shows nothing while you swing. It will offer one line at the
-end of a block. Everything else, you pull.
+A home trainer for the evenings you are not on court. You stand in a full virtual
+badminton hall with your own furniture fading in through passthrough as you near it.
+A drill feeder lifts a high clear; you step, swing, and **the shuttle actually flies** —
+on the trajectory your contact produced, clearing the net or not, landing in the target
+box or past it. Every rep.
 
-Built for Assignment 2, Intelligent Interactive Systems, University of Birmingham.
+The coaching is the part that waits to be asked.
+
+Assignment 2, Intelligent Interactive Systems, University of Birmingham.
 Atharva Waghmare (AXW1008).
 
 ---
@@ -15,48 +19,45 @@ Atharva Waghmare (AXW1008).
 
 **Implemented and working**
 
-- The policy engine (`src/policy.js`) — interaction contracts, hysteresis with hold
-  times, and the three-step override ladder. This is the contribution.
-- Four surfaces: Practice, Review, Coach, Trace.
-- Evidence binding — every observation names the swings it came from and draws them
-  on the session trace.
-- The tracking-quality gate: swings with a stale pose are dropped, never guessed at,
-  and are visibly excluded from every number.
-- The decision trace, built from the engine's own return values.
+- The drill loop: feeder, step, swing, flight, landing, verdict.
+- Shuttle flight under quadratic drag. Terminal velocity 6.8 m/s, so launch is near
+  60 m/s and nearly all of it is shed — a parabola reads wrong to anyone who plays.
+- **Reach remap.** A jump smash wants ~3.0 m and a 2.4 m ceiling gives 2.1 m, so the
+  virtual racket reaches 1.36x further. Shown in the HUD, adjustable on the Room page,
+  capped at 1.6x.
+- **Freeze mid-flight** (`P`): the shuttle stops, and a dashed line shows the gap
+  between where it is and where the stroke wants to meet it. The player triggers it;
+  after three misses the system *offers*, and never takes it.
+- The policy engine: contracts, hysteresis with hold times, three-step override ladder.
+- Player review (pull-only) and a separate coach surface behind an approval gate.
+- Furniture fade-in as a collision warning.
 
-**Simulated, and labelled as such in the interface**
+**Simulated, and labelled in the interface**
 
-- Sensing. There is no headset. `src/data.js` generates a 60-swing session with a
-  swing-plane drift injected from swing 20 and three occluded swings. A1 scoped the
-  project to *when* an analysis appears rather than whether it is accurate, so the
-  sensing being simulated does not weaken the claim being tested.
-- The analysis. Descriptive statistics against the player's own first twelve swings.
-  Deliberately simple, for the same reason.
+- Head and racket tracking. There is no headset; `←`/`→` step and `Space` swings, and
+  the *timing* of that press sets where you meet the shuttle — the same variable the
+  coaching layer reads in either case.
 
 **Planned, not built**
 
-- An LLM that turns a scored observation into a sentence, sitting beside the loop
-  rather than inside it. Scoped so that if it is late or never returns, the template
-  sentence stands and shows its age.
-- Longitudinal state. Mutes last one session; nothing is remembered across sessions.
-- The pain-mapping feature from the original concept. It needs pain reports across
-  many sessions, which this build has no way to collect.
+- An LLM to phrase observations, sitting beside the loop. Scoped so that if it is late
+  or absent, the template sentence stands.
+- Progression across sessions. Mutes currently last one session.
 
 **Known limitations**
 
-- Hysteresis is tuned against one generated fixture. The thresholds are defended by
-  argument, not by data from real players.
-- There is no retention measurement. That is the outcome the underlying evidence
-  turns on, and it cannot be established inside the module.
-- The coach surface has one coach and no identity model.
+- Thresholds are defended by argument, not by data from real players.
+- No retention measurement, which is the outcome the evidence turns on.
+- The swing is reduced to its timing: the system models *when* contact happened, not
+  how the arm got there.
 
 ## Technology stack
 
 | Piece | What it does | Why |
 |---|---|---|
-| Vanilla ES modules, no framework | The whole application | No build step, so a reviewer can read the source that actually runs |
-| SVG, inline | Session sparklines | The evidence has to be visible next to the claim |
-| Playwright | `tools/shots.mjs` captures the report figures | Figures are regenerated from the running app, so they cannot drift from the code |
+| Three.js r170, vendored | The hall, court, shuttle, racket, trajectories | Vendored into `vendor/` so the repo runs with no build step and no network |
+| Vanilla ES modules | Everything else | A reviewer can read the source that actually runs |
+| Playwright | `tools/check.mjs` (9 behaviour checks), `tools/shots.mjs` (report figures) | The preview pane I first tested in throttles rAF and timers; a real browser was the only way to trust a result |
 | Python `http.server` | Local static server | ES modules need HTTP; `file://` will not load them |
 
 No AI model runs in the built system. The one planned model component is marked
@@ -70,8 +71,9 @@ python3 -m http.server 4178
 # open http://localhost:4178
 ```
 
-Fastest way to see the argument: press **Play the rest of this block** five times,
-watch that nothing appears until the fifth, then open **Review**.
+Fastest way to see it work: press **Feed a shuttle**, then **Space** about 1.5 s later.
+Too early finds the net, too late sails out, and the window in between lands in the
+target box. Press **P** during a flight to freeze it. Tick **Side view** to see the arc.
 
 To regenerate the report figures:
 
@@ -79,54 +81,62 @@ To regenerate the report figures:
 npm install
 npx playwright install chromium
 node tools/shots.mjs        # writes docs/shots/*.png
+node tools/check.mjs        # 9 behaviour checks against the running app
 ```
 
 ## Development record
 
-**The policy came first, the interface second.** The engine was written and tested
-headlessly before any screen existed, because the project's claim is about the policy
-and not about the visuals.
+**The first build was wrong, and it was wrong about what a product is.** It showed
+nothing during practice and treated that restraint as the design. A restraint is a
+constraint on a product, not a product — nobody practises badminton because an app is
+quiet. Worse, it conflated two different things: *task* feedback (where the shuttle
+went) with *augmented* feedback (a judgement about your technique). Only the second is
+what the motor-learning literature warns about. The rebuild gives the shuttle back on
+every rep and makes only the coaching wait to be asked.
 
-**The fixture was too short, and that looked like a policy bug.** On a 40-swing
-session the raise rule never fired. The first instinct was that the hysteresis was
-wrong. Printing the per-block confidence trajectory showed the policy was correct and
-the session was too short to ever produce two consecutive blocks above threshold.
-Lengthened to 60 swings. The trajectory now reads 0.04 → 0.05 → 0.49 → 1.0 → 1.0,
-which puts a full-confidence block at `arming` and silent, and only raises on the
-block after. That is the anti-flicker rule doing visible work, and it is the single
-clearest demonstration in the build.
+**The flight model was wrong by a factor of three.** Early launch speeds of 20 m/s could
+not reach the net, let alone the back of the court. A shuttle's terminal velocity is
+about 6.8 m/s, so it leaves the racket near 60 m/s and sheds nearly all of it; the
+drag-to-mass ratio, not the geometry, was what I had mis-set. Sweeping the model fixed it.
 
-**Three defects were found by driving the interface, not by reading it.** The review
-window was the whole session, so recent drift averaged away and the evidence line read
-"from swings 1, 2, 3 … 50", which tells a player nothing they can act on; it now reviews
-the most recent block and reads "10.8° higher, swings 41–50". The sparkline plotted
-swings that had not been played yet. The level-two override message was written into
-the observations container and then destroyed by the re-render on the next line, so
-muting silently said nothing — it is now held in state across the render.
+**The drill felt random before it felt hard.** At 30 degrees of launch pitch per metre
+of contact error, one centimetre of timing moved the landing a quarter of a metre. A
+sweep over the flight model settled on 18, which gives a 0.4 m contact window — roughly
+220 ms, demanding but learnable.
 
-**One behaviour was left deliberately awkward.** Escalating from dismissed to muted
-requires the observation to return in a *later* block. It cannot be done by clicking
-twice. That makes the mute harder to reach, and it is correct: the ladder is meant to
-escalate over time rather than on a double-click.
+**Two defects found by running it, not reading it.** `requestAnimationFrame` does not
+fire in every embedded context, and the flight clock was built from accumulated frame
+deltas, so physics stopped whenever rendering did and every rep reported an identical
+contact point. Flight time now comes from the wall clock and the rep state machine also
+advances on a timer. Separately, three.js `setFromPoints` reuses an existing position
+buffer and iterates its *old* count, so it threw every time a trail got shorter; the
+geometry is replaced rather than mutated.
+
+**A design decision left deliberately awkward.** Escalating from dismissed to muted
+needs the observation to come back in a *later* block. You cannot double-click your way
+to it. That makes mute harder to reach, which is correct: the ladder should escalate
+over time, not on an impatient second click.
 
 ## AI assistance
 
-Claude Opus 5, via Claude Code, was used throughout: for the literature search behind
-A1, for writing this codebase, and for drafting the report.
+Claude Opus 5, via Claude Code, was used throughout: the literature search behind A1,
+this codebase, the diagrams and the report drafts.
 
 What was checked and changed rather than accepted:
 
-- **Fabrication checks on the literature.** Every source behind A1 was verified
-  against the published paper. Three claims were wrong in the first draft and were
-  corrected: a study's participants were described as novices when they averaged 6.6
-  years of experience; a NASA-TLX subscale was misread as mental effort when it
-  measures self-rated performance; and a retention result rested on difference scores
-  because the ANOVA interaction was not significant, which the draft had not said.
-- **An architectural suggestion was rejected.** Adding an LLM to generate feedback
-  text was proposed and cut from the build. The case against it is written up in
-  `AGENTS.md` rather than hidden.
-- **Generated code was tested, not trusted.** The three interface defects above were
-  all in AI-written code and were found by running it.
+- **A whole build was rejected and rewritten.** The first version was AI-designed around
+  a single literature finding and ended up being about not doing things. That was my
+  call to throw out, and the reasoning is in the development record above.
+- **Fabrication checks on the literature.** Every A1 source was verified against the
+  published paper. Three claims were wrong in the first draft: participants described
+  as novices who averaged 6.6 years of experience, a NASA-TLX subscale misread as mental
+  effort when it measures self-rated performance, and a retention result that rested on
+  difference scores because the ANOVA interaction was not significant.
+- **Generated physics was wrong and was caught by testing it.** The 20 m/s launch speed
+  and the 30-degree sensitivity both came out of the model looking plausible and were
+  both wrong. Sweeping the parameter space, not reading the code, is what found them.
+- **An architectural suggestion was cut.** Adding an LLM to generate feedback text was
+  proposed and removed; the case against it is in `AGENTS.md` rather than hidden.
 
 ## Files
 
