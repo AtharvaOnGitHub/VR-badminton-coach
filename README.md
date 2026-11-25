@@ -1,6 +1,6 @@
 # Shadow — badminton shadow practice that waits to be asked
 
-**README prose word count: ~720** (setup commands and code excluded)
+**README prose word count: ~1,020** (headings and setup commands excluded)
 
 An XR practice tool for badminton shadow swings in which **the player decides when
 the system speaks**. It shows nothing while you swing. It will offer one line at the
